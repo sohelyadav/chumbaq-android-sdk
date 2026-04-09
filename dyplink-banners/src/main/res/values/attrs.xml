@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="BannerCarouselView">
+        <attr name="dyplink_categoryId" format="string" />
+        <attr name="dyplink_autoRotate" format="boolean" />
+        <attr name="dyplink_rotationInterval" format="integer" />
+    </declare-styleable>
+</resources>

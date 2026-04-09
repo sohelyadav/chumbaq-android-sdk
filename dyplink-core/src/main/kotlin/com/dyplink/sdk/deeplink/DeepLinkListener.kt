@@ -1,0 +1,13 @@
+package com.dyplink.sdk.deeplink
+
+import com.dyplink.sdk.model.DeepLinkResult
+
+/**
+ * Callback interface invoked when a deep link is resolved.
+ *
+ * Register via the Dyplink SDK configuration to receive both
+ * direct and deferred deep link results.
+ */
+fun interface DeepLinkListener {
+    fun onDeepLink(result: DeepLinkResult)
+}
