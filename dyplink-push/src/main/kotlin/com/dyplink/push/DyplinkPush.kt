@@ -115,7 +115,10 @@ object DyplinkPush {
     fun registerToken(token: String, callback: DyplinkCallback<Unit>?) {
         checkInit()
         scope.launch {
-            val result = runCatching { tokenManager.registerToken(token) }
+            val result = runCatching {
+                tokenManager.registerToken(token)
+                Unit
+            }
             callback?.onResult(result)
         }
     }
@@ -148,7 +151,10 @@ object DyplinkPush {
     fun unregisterToken(callback: DyplinkCallback<Unit>?) {
         checkInit()
         scope.launch {
-            val result = runCatching { tokenManager.unregisterCurrentToken() }
+            val result = runCatching {
+                tokenManager.unregisterCurrentToken()
+                Unit
+            }
             callback?.onResult(result)
         }
     }

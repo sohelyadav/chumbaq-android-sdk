@@ -69,9 +69,9 @@ internal class DeferredDeepLinkMatcher(
         // entirely rather than sending an empty string.
         val bodyMap = mutableMapOf<String, Any?>()
 
-        val os = deviceInfo["os"] ?: "Android"
-        val osVersion = deviceInfo["osVersion"] ?: ""
-        val model = deviceInfo["model"] ?: ""
+        val os = (deviceInfo["os"] as? String).orEmpty().ifBlank { "Android" }
+        val osVersion = (deviceInfo["osVersion"] as? String).orEmpty()
+        val model = (deviceInfo["model"] as? String).orEmpty()
         val screenWidth = deviceInfo["screenWidth"]
         val screenHeight = deviceInfo["screenHeight"]
 

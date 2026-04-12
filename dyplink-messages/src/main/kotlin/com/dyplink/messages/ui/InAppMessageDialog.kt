@@ -206,11 +206,12 @@ internal class InAppMessageDialog(
 
     // ── Helpers ────────────────────────────────────────────────────
 
-    private fun scheduleAutoDismiss(delaySecs: Int = message.autoDismissSeconds ?: return, action: () -> Unit) {
+    private fun scheduleAutoDismiss(delaySecs: Int? = message.autoDismissSeconds, action: () -> Unit) {
+        val effectiveDelaySecs = delaySecs ?: return
         autoDismissRunnable = Runnable {
             onEvent("auto_dismiss", null)
             action()
-        }.also { handler.postDelayed(it, delaySecs * 1000L) }
+        }.also { handler.postDelayed(it, effectiveDelaySecs * 1000L) }
     }
 
     private fun cancelAutoDismiss() {

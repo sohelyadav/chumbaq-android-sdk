@@ -1,9 +1,15 @@
+import com.vanniktech.maven.publish.AndroidSingleVariantLibrary
+import com.vanniktech.maven.publish.SonatypeHost
+
 plugins {
     alias(libs.plugins.android.library)
     alias(libs.plugins.kotlin.android)
     alias(libs.plugins.kotlin.kapt)
-    `maven-publish`
+    id("com.vanniktech.maven.publish")
 }
+
+val sdkGroup = providers.gradleProperty("GROUP")
+val sdkVersion = providers.gradleProperty("SDK_VERSION")
 
 android {
     namespace = "com.dyplink.sdk"
@@ -64,15 +70,35 @@ dependencies {
     androidTestImplementation(libs.mockk.android)
 }
 
-afterEvaluate {
-    publishing {
-        publications {
-            create<MavenPublication>("release") {
-                from(components["release"])
-                groupId = "com.dyplink"
-                artifactId = "dyplink-core"
-                version = findProperty("SDK_VERSION") as? String ?: "0.1.0"
+mavenPublishing {
+    publishToMavenCentral(SonatypeHost.CENTRAL_PORTAL)
+    signAllPublications()
+    coordinates(sdkGroup.get(), "dyplink-core", sdkVersion.get())
+    configure(AndroidSingleVariantLibrary(variant = "release", sourcesJar = true, publishJavadocJar = true))
+
+    pom {
+        name.set("Dyplink Android SDK Core")
+        description.set("Core module for Dyplink Android SDK")
+        url.set("https://github.com/sohelyadav/dyplink-android-sdk")
+
+        licenses {
+            license {
+                name.set("The Apache License, Version 2.0")
+                url.set("https://www.apache.org/licenses/LICENSE-2.0.txt")
             }
+        }
+
+        developers {
+            developer {
+                id.set("sohelyadav")
+                name.set("Sohel Yadav")
+            }
+        }
+
+        scm {
+            connection.set("scm:git:git://github.com/sohelyadav/dyplink-android-sdk.git")
+            developerConnection.set("scm:git:ssh://git@github.com/sohelyadav/dyplink-android-sdk.git")
+            url.set("https://github.com/sohelyadav/dyplink-android-sdk")
         }
     }
 }
