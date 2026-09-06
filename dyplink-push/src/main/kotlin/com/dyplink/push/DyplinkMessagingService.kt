@@ -12,7 +12,8 @@ import com.google.firebase.messaging.RemoteMessage
  *
  * 1. **Token refresh** — forwards new tokens to [DyplinkPush] so they
  *    are automatically re-registered with the backend.
- * 2. **Message receipt** — delegates to the host app via
+ * 2. **Message receipt** — reports a `delivered` event for Dyplink
+ *    campaign pushes, then delegates to the host app via
  *    [onDyplinkMessage]. If the host does not handle the message, a
  *    default notification is displayed via [PushNotificationHandler].
  *
@@ -31,6 +32,7 @@ open class DyplinkMessagingService : FirebaseMessagingService() {
 
     override fun onMessageReceived(message: RemoteMessage) {
         super.onMessageReceived(message)
+        DyplinkPush.reportDelivered(message.data)
         if (!onDyplinkMessage(message)) {
             // The host app did not handle the message — show a default notification.
             PushNotificationHandler.showNotification(this, message)

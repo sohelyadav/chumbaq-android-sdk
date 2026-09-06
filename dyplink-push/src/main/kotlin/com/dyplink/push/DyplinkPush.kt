@@ -32,6 +32,7 @@ object DyplinkPush {
     val isInitialized: Boolean get() = _isInitialized
 
     private lateinit var tokenManager: PushTokenManager
+    private lateinit var eventReporter: PushEventReporter
     private lateinit var scope: CoroutineScope
 
     /**
@@ -69,6 +70,7 @@ object DyplinkPush {
 
         scope = CoroutineScope(SupervisorJob() + Dispatchers.Main)
         tokenManager = PushTokenManager(context.applicationContext)
+        eventReporter = PushEventReporter(context.applicationContext)
         _isInitialized = true
 
         Log.d(TAG, "DyplinkPush initialized")
@@ -183,6 +185,46 @@ object DyplinkPush {
     }
 
     /**
+     * Called by [DyplinkMessagingService] when a push message is
+     * received.
+     *
+     * If the module is not yet initialised, or the message carries no
+     * Dyplink campaign id, the report is silently dropped.
+     */
+    internal fun reportDelivered(data: Map<String, String>) {
+        if (!_isInitialized) return
+        scope.launch(Dispatchers.IO) {
+            eventReporter.reportDelivered(data)
+        }
+    }
+
+    /**
+     * Called by [PushClickReceiver] when a Dyplink campaign notification
+     * is tapped.
+     *
+     * If the module is not yet initialised the report is silently
+     * dropped — there is no config to send it with.
+     *
+     * [onComplete] always runs, on every path including the uninitialised
+     * one. The receiver holds a `goAsync()` result open until it fires, and
+     * never finishing that would leave the broadcast pending until the system
+     * times it out.
+     */
+    internal fun reportClick(campaignId: String, onComplete: () -> Unit = {}) {
+        if (!_isInitialized) {
+            onComplete()
+            return
+        }
+        scope.launch(Dispatchers.IO) {
+            try {
+                eventReporter.reportClick(campaignId)
+            } finally {
+                onComplete()
+            }
+        }
+    }
+
+    /**
      * Resets the singleton state. **For testing only.**
      */
     @Suppress("unused")
@@ -191,13 +233,16 @@ object DyplinkPush {
     }
 
     /**
-     * Inject a [PushTokenManager] for testing. **For testing only.**
+     * Inject a [PushTokenManager] and [PushEventReporter] for testing.
+     * **For testing only.**
      */
     internal fun injectForTesting(
         manager: PushTokenManager,
         coroutineScope: CoroutineScope,
+        reporter: PushEventReporter,
     ) {
         tokenManager = manager
+        eventReporter = reporter
         scope = coroutineScope
         _isInitialized = true
     }
