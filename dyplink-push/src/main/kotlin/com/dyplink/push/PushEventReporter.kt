@@ -79,8 +79,8 @@ internal class PushEventReporter(
     /**
      * Reports a `click` event for the given [campaignId].
      */
-    suspend fun reportClick(campaignId: String) {
-        reportEvent(campaignId, PushEventType.CLICK)
+    suspend fun reportClick(campaignId: String, actionId: String? = null) {
+        reportEvent(campaignId, PushEventType.CLICK, actionId)
     }
 
     /**
@@ -90,7 +90,11 @@ internal class PushEventReporter(
      * failures) are logged and swallowed, never thrown, so a failing
      * analytics endpoint can never block or break notification display.
      */
-    private suspend fun reportEvent(campaignId: String, type: PushEventType) =
+    private suspend fun reportEvent(
+        campaignId: String,
+        type: PushEventType,
+        actionId: String? = null,
+    ) =
         withContext(Dispatchers.IO) {
             try {
                 val cfg = configSupplier.get()
@@ -102,6 +106,11 @@ internal class PushEventReporter(
                     put("type", type.value)
                     put("platform", "android")
                     put("occurredAt", iso8601Now())
+                    // Which button, when it was a button. The server stores
+                    // this on the event so a report can separate the two.
+                    if (actionId != null) {
+                        put("metadata", JSONObject().put("actionId", actionId))
+                    }
                 }
 
                 val request = Request.Builder()
