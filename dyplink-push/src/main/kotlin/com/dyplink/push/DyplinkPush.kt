@@ -210,14 +210,18 @@ object DyplinkPush {
      * never finishing that would leave the broadcast pending until the system
      * times it out.
      */
-    internal fun reportClick(campaignId: String, onComplete: () -> Unit = {}) {
+    internal fun reportClick(
+        campaignId: String,
+        actionId: String? = null,
+        onComplete: () -> Unit = {},
+    ) {
         if (!_isInitialized) {
             onComplete()
             return
         }
         scope.launch(Dispatchers.IO) {
             try {
-                eventReporter.reportClick(campaignId)
+                eventReporter.reportClick(campaignId, actionId)
             } finally {
                 onComplete()
             }

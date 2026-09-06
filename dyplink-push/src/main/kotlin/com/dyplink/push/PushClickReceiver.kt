@@ -26,7 +26,10 @@ internal class PushClickReceiver : BroadcastReceiver() {
             // saves it by chance, but not when that launch fails, which is
             // precisely when nothing else keeps the process alive.
             val pendingResult = goAsync()
-            DyplinkPush.reportClick(campaignId) { pendingResult.finish() }
+            // The action id rides along so "tapped the notification" can be
+            // told apart from "pressed Buy now" in the campaign report.
+            val actionId = intent.getStringExtra(EXTRA_ACTION_ID)
+            DyplinkPush.reportClick(campaignId, actionId) { pendingResult.finish() }
         }
 
         val targetIntent = intent.getParcelableIntentExtra(EXTRA_TARGET_INTENT) ?: return
@@ -43,6 +46,9 @@ internal class PushClickReceiver : BroadcastReceiver() {
     internal companion object {
         private const val TAG = "PushClickReceiver"
         internal const val EXTRA_CAMPAIGN_ID = "com.dyplink.push.EXTRA_CAMPAIGN_ID"
+
+        /** Which button was pressed, absent when the body itself was tapped. */
+        internal const val EXTRA_ACTION_ID = "com.dyplink.push.EXTRA_ACTION_ID"
         internal const val EXTRA_TARGET_INTENT = "com.dyplink.push.EXTRA_TARGET_INTENT"
     }
 }

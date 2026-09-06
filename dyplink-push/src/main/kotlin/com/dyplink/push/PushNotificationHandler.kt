@@ -6,7 +6,9 @@ import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import org.json.JSONArray
 import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.RemoteMessage
 
@@ -24,6 +26,14 @@ import com.google.firebase.messaging.RemoteMessage
 internal object PushNotificationHandler {
 
     private const val CHANNEL_ID = "dyplink_push"
+
+    private const val TAG = "PushNotificationHandler"
+
+    /** Data key carrying campaign action buttons, written by the server. */
+    internal const val ACTIONS_DATA_KEY = "dyplink_actions"
+
+    /** Android only renders three; more are silently dropped by the system. */
+    private const val MAX_ACTIONS = 3
     private const val CHANNEL_NAME = "Push Notifications"
 
     /**
@@ -88,16 +98,78 @@ internal object PushNotificationHandler {
             )
         }
 
-        val notification = NotificationCompat.Builder(context, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(context, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(body)
             .setSmallIcon(android.R.drawable.ic_dialog_info)
             .setAutoCancel(true)
             .apply { if (pendingIntent != null) setContentIntent(pendingIntent) }
-            .build()
+
+        addActions(context, builder, message, campaignId, deepLinkUrl)
+
+        val notification = builder.build()
 
         // Use current millis truncated to Int for a quasi-unique notification ID
         val notificationId = (System.currentTimeMillis() % Int.MAX_VALUE).toInt()
         notificationManager.notify(notificationId, notification)
     }
+
+    /**
+     * Adds buttons declared by the campaign under `dyplink_actions`.
+     *
+     * Android has no payload-level notion of notification actions, so the
+     * server sends their definitions as data and they are built here. Each
+     * button routes through [PushClickReceiver] like the body tap does, so a
+     * press is reported before the app opens — carrying its own action id, so
+     * "tapped the notification" can be told apart from "pressed Buy now".
+     *
+     * A malformed or missing list is ignored: a notification with no buttons
+     * is a smaller failure than no notification at all.
+     */
+    private fun addActions(
+        context: Context,
+        builder: NotificationCompat.Builder,
+        message: RemoteMessage,
+        campaignId: String?,
+        fallbackDeepLink: String?,
+    ) {
+        val raw = message.data[ACTIONS_DATA_KEY] ?: return
+
+        val actions = try {
+            JSONArray(raw)
+        } catch (e: Exception) {
+            Log.w(TAG, "Ignoring malformed $ACTIONS_DATA_KEY payload", e)
+            return
+        }
+
+        for (index in 0 until minOf(actions.length(), MAX_ACTIONS)) {
+            val action = actions.optJSONObject(index) ?: continue
+            val id = action.optString("id").takeIf { it.isNotEmpty() } ?: continue
+            val actionTitle = action.optString("title").takeIf { it.isNotEmpty() } ?: continue
+            val link = action.optString("deepLinkUrl").takeIf { it.isNotEmpty() }
+                ?: fallbackDeepLink
+
+            val target: Intent = if (link != null) {
+                Intent(Intent.ACTION_VIEW, Uri.parse(link))
+            } else {
+                context.packageManager.getLaunchIntentForPackage(context.packageName)
+                    ?: continue
+            }
+
+            val pending = PendingIntent.getBroadcast(
+                context,
+                // Distinct request code per action, or PendingIntent would
+                // reuse one instance and every button would do the same thing.
+                index + 1,
+                Intent(context, PushClickReceiver::class.java)
+                    .putExtra(PushClickReceiver.EXTRA_CAMPAIGN_ID, campaignId)
+                    .putExtra(PushClickReceiver.EXTRA_ACTION_ID, id)
+                    .putExtra(PushClickReceiver.EXTRA_TARGET_INTENT, target),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+            )
+
+            builder.addAction(0, actionTitle, pending)
+        }
+    }
+
 }
