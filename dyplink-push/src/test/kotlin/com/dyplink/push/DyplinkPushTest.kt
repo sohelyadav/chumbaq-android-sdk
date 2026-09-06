@@ -29,6 +29,7 @@ import org.junit.Test
 class DyplinkPushTest {
 
     private lateinit var tokenManager: PushTokenManager
+    private lateinit var eventReporter: PushEventReporter
     private val testDispatcher = StandardTestDispatcher()
     private lateinit var testScope: TestScope
 
@@ -37,6 +38,7 @@ class DyplinkPushTest {
         mockkObject(Dyplink)
 
         tokenManager = mockk<PushTokenManager>(relaxed = true)
+        eventReporter = mockk<PushEventReporter>(relaxed = true)
         testScope = TestScope(testDispatcher)
     }
 
@@ -61,7 +63,7 @@ class DyplinkPushTest {
         every { Dyplink.isInitialized } returns true
 
         // First init via injection
-        DyplinkPush.injectForTesting(tokenManager, testScope)
+        DyplinkPush.injectForTesting(tokenManager, testScope, eventReporter)
         assertTrue("Should be initialized after inject", DyplinkPush.isInitialized)
 
         // Second init should not throw and should remain initialized
@@ -82,7 +84,7 @@ class DyplinkPushTest {
     @Test
     fun `isRegistered delegates to tokenManager when true`() {
         every { tokenManager.isRegistered } returns true
-        DyplinkPush.injectForTesting(tokenManager, testScope)
+        DyplinkPush.injectForTesting(tokenManager, testScope, eventReporter)
 
         assertTrue(DyplinkPush.isRegistered)
     }
@@ -90,7 +92,7 @@ class DyplinkPushTest {
     @Test
     fun `isRegistered delegates to tokenManager when false`() {
         every { tokenManager.isRegistered } returns false
-        DyplinkPush.injectForTesting(tokenManager, testScope)
+        DyplinkPush.injectForTesting(tokenManager, testScope, eventReporter)
 
         assertFalse(DyplinkPush.isRegistered)
     }
@@ -100,7 +102,7 @@ class DyplinkPushTest {
     @Test
     fun `registerToken delegates to tokenManager`() = runTest {
         coEvery { tokenManager.registerToken(any()) } returns Unit
-        DyplinkPush.injectForTesting(tokenManager, testScope)
+        DyplinkPush.injectForTesting(tokenManager, testScope, eventReporter)
 
         DyplinkPush.registerToken("test_token")
 
@@ -118,7 +120,7 @@ class DyplinkPushTest {
     @Test
     fun `unregisterToken delegates to tokenManager`() = runTest {
         coEvery { tokenManager.unregisterCurrentToken() } returns Unit
-        DyplinkPush.injectForTesting(tokenManager, testScope)
+        DyplinkPush.injectForTesting(tokenManager, testScope, eventReporter)
 
         DyplinkPush.unregisterToken()
 
@@ -136,7 +138,7 @@ class DyplinkPushTest {
     @Test
     fun `onTokenRefresh registers token when initialized`() = testScope.runTest {
         coEvery { tokenManager.registerToken(any()) } returns Unit
-        DyplinkPush.injectForTesting(tokenManager, testScope)
+        DyplinkPush.injectForTesting(tokenManager, testScope, eventReporter)
 
         DyplinkPush.onTokenRefresh("refreshed_token")
         advanceUntilIdle()
@@ -160,7 +162,7 @@ class DyplinkPushTest {
     @Test
     fun `registerToken callback receives success`() = testScope.runTest {
         coEvery { tokenManager.registerToken(any()) } returns Unit
-        DyplinkPush.injectForTesting(tokenManager, testScope)
+        DyplinkPush.injectForTesting(tokenManager, testScope, eventReporter)
 
         var callbackResult: Result<Unit>? = null
         DyplinkPush.registerToken("test_token") { result ->
@@ -177,7 +179,7 @@ class DyplinkPushTest {
     @Test
     fun `registerToken callback receives failure`() = testScope.runTest {
         coEvery { tokenManager.registerToken(any()) } throws RuntimeException("boom")
-        DyplinkPush.injectForTesting(tokenManager, testScope)
+        DyplinkPush.injectForTesting(tokenManager, testScope, eventReporter)
 
         var callbackResult: Result<Unit>? = null
         DyplinkPush.registerToken("test_token") { result ->
@@ -198,7 +200,7 @@ class DyplinkPushTest {
     @Test
     fun `unregisterToken callback receives success`() = testScope.runTest {
         coEvery { tokenManager.unregisterCurrentToken() } returns Unit
-        DyplinkPush.injectForTesting(tokenManager, testScope)
+        DyplinkPush.injectForTesting(tokenManager, testScope, eventReporter)
 
         var callbackResult: Result<Unit>? = null
         DyplinkPush.unregisterToken { result ->
@@ -210,5 +212,54 @@ class DyplinkPushTest {
             "Callback should receive success",
             callbackResult?.isSuccess == true,
         )
+    }
+
+    // ── reportDelivered ─────────────────────────────────────────────
+
+    @Test
+    fun `reportDelivered delegates to eventReporter when initialized`() = testScope.runTest {
+        coEvery { eventReporter.reportDelivered(any()) } returns Unit
+        DyplinkPush.injectForTesting(tokenManager, testScope, eventReporter)
+
+        val data = mapOf("dyplink_campaign_id" to "camp_1")
+        DyplinkPush.reportDelivered(data)
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { eventReporter.reportDelivered(data) }
+    }
+
+    @Test
+    fun `reportDelivered is no-op when not initialized`() = testScope.runTest {
+        DyplinkPush.resetForTesting()
+
+        // Should not throw
+        DyplinkPush.reportDelivered(mapOf("dyplink_campaign_id" to "camp_1"))
+        advanceUntilIdle()
+
+        // eventReporter was never injected, so no call is made — just verify no crash.
+    }
+
+    // ── reportClick ─────────────────────────────────────────────────
+
+    @Test
+    fun `reportClick delegates to eventReporter when initialized`() = testScope.runTest {
+        coEvery { eventReporter.reportClick(any()) } returns Unit
+        DyplinkPush.injectForTesting(tokenManager, testScope, eventReporter)
+
+        DyplinkPush.reportClick("camp_1")
+        advanceUntilIdle()
+
+        coVerify(exactly = 1) { eventReporter.reportClick("camp_1") }
+    }
+
+    @Test
+    fun `reportClick is no-op when not initialized`() = testScope.runTest {
+        DyplinkPush.resetForTesting()
+
+        // Should not throw
+        DyplinkPush.reportClick("camp_1")
+        advanceUntilIdle()
+
+        // eventReporter was never injected, so no call is made — just verify no crash.
     }
 }

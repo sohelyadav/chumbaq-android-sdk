@@ -80,7 +80,7 @@ internal class PushTokenManager(
      *
      * @throws RuntimeException when the server returns a non-2xx status.
      */
-    suspend fun registerToken(token: String) = withContext(Dispatchers.IO) {
+    suspend fun registerToken(token: String): Unit = withContext(Dispatchers.IO) {
         val cfg = configSupplier.get()
 
         val body = JSONObject().apply {
@@ -121,7 +121,7 @@ internal class PushTokenManager(
      * This is a best-effort operation — server errors are logged but
      * not re-thrown so that the local state is always cleared.
      */
-    suspend fun unregisterCurrentToken() = withContext(Dispatchers.IO) {
+    suspend fun unregisterCurrentToken(): Unit = withContext(Dispatchers.IO) {
         val cfg = configSupplier.get()
         val token = currentToken ?: FirebaseMessaging.getInstance().token.await()
 
