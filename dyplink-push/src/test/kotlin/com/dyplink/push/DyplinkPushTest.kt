@@ -119,12 +119,12 @@ class DyplinkPushTest {
 
     @Test
     fun `unregisterToken delegates to tokenManager`() = runTest {
-        coEvery { tokenManager.unregisterCurrentToken() } returns Unit
+        coEvery { tokenManager.unregisterAllTokens() } returns Unit
         DyplinkPush.injectForTesting(tokenManager, testScope, eventReporter)
 
         DyplinkPush.unregisterToken()
 
-        coVerify(exactly = 1) { tokenManager.unregisterCurrentToken() }
+        coVerify(exactly = 1) { tokenManager.unregisterAllTokens() }
     }
 
     @Test(expected = IllegalStateException::class)
@@ -199,7 +199,7 @@ class DyplinkPushTest {
 
     @Test
     fun `unregisterToken callback receives success`() = testScope.runTest {
-        coEvery { tokenManager.unregisterCurrentToken() } returns Unit
+        coEvery { tokenManager.unregisterAllTokens() } returns Unit
         DyplinkPush.injectForTesting(tokenManager, testScope, eventReporter)
 
         var callbackResult: Result<Unit>? = null
@@ -211,6 +211,67 @@ class DyplinkPushTest {
         assertTrue(
             "Callback should receive success",
             callbackResult?.isSuccess == true,
+        )
+    }
+
+    // ── registerMiPushToken ─────────────────────────────────────────
+
+    @Test
+    fun `registerMiPushToken delegates to tokenManager on the mi push channel`() = runTest {
+        coEvery { tokenManager.registerToken(any(), any()) } returns Unit
+        DyplinkPush.injectForTesting(tokenManager, testScope, eventReporter)
+
+        DyplinkPush.registerMiPushToken("mi_regid_777")
+
+        coVerify(exactly = 1) {
+            tokenManager.registerToken("mi_regid_777", PushProvider.MI_PUSH)
+        }
+    }
+
+    @Test(expected = IllegalStateException::class)
+    fun `registerMiPushToken throws when not initialized`() = runTest {
+        DyplinkPush.resetForTesting()
+        DyplinkPush.registerMiPushToken("mi_regid_777")
+    }
+
+    @Test
+    fun `registerMiPushToken callback receives success`() = testScope.runTest {
+        coEvery { tokenManager.registerToken(any(), any()) } returns Unit
+        DyplinkPush.injectForTesting(tokenManager, testScope, eventReporter)
+
+        var callbackResult: Result<Unit>? = null
+        DyplinkPush.registerMiPushToken("mi_regid_777") { result ->
+            callbackResult = result
+        }
+        advanceUntilIdle()
+
+        assertTrue(
+            "Callback should receive success",
+            callbackResult?.isSuccess == true,
+        )
+        coVerify(exactly = 1) {
+            tokenManager.registerToken("mi_regid_777", PushProvider.MI_PUSH)
+        }
+    }
+
+    @Test
+    fun `registerMiPushToken callback receives failure`() = testScope.runTest {
+        // A deployment without Mi Push credentials answers 400 — surfaced,
+        // not swallowed.
+        coEvery {
+            tokenManager.registerToken(any(), PushProvider.MI_PUSH)
+        } throws RuntimeException("boom")
+        DyplinkPush.injectForTesting(tokenManager, testScope, eventReporter)
+
+        var callbackResult: Result<Unit>? = null
+        DyplinkPush.registerMiPushToken("mi_regid_777") { result ->
+            callbackResult = result
+        }
+        advanceUntilIdle()
+
+        assertTrue(
+            "Callback should receive failure",
+            callbackResult?.isFailure == true,
         )
     }
 

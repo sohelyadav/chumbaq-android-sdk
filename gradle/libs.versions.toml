@@ -22,6 +22,9 @@ androidx-test-core = "1.6.1"
 androidx-test-runner = "1.6.1"
 
 [libraries]
+# Real JSONObject for unit tests: the android.jar on the unit-test classpath
+# is stubs that throw "not mocked" on every call.
+json = { module = "org.json:json", version = "20240303" }
 kotlin-stdlib = { module = "org.jetbrains.kotlin:kotlin-stdlib", version.ref = "kotlin" }
 coroutines-core = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-core", version.ref = "coroutines" }
 coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }

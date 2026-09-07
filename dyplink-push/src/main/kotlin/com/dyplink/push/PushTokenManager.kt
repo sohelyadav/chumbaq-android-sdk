@@ -14,11 +14,16 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
 
 /**
- * Manages FCM push-token registration and unregistration with the
- * Dyplink backend.
+ * Manages push-token registration and unregistration with the Dyplink
+ * backend.
+ *
+ * A device can be registered on more than one delivery channel at a time —
+ * see [PushProvider] — so tokens are tracked per provider rather than as a
+ * single "current" token.
  *
  * All network calls are executed on [Dispatchers.IO] and are
  * idempotent — it is safe to register the same token multiple times.
@@ -33,11 +38,11 @@ internal class PushTokenManager(
 
     private val TAG = "PushTokenManager"
 
-    @Volatile
-    private var currentToken: String? = null
+    /** Latest successfully registered token per delivery channel. */
+    private val registeredTokens = ConcurrentHashMap<PushProvider, String>()
 
-    /** `true` after a successful [registerToken]; reset by [unregisterCurrentToken]. */
-    val isRegistered: Boolean get() = currentToken != null
+    /** `true` while at least one channel is registered; reset by [unregisterAllTokens]. */
+    val isRegistered: Boolean get() = registeredTokens.isNotEmpty()
 
     // ── Config access ───────────────────────────────────────────────
 
@@ -76,11 +81,20 @@ internal class PushTokenManager(
     }
 
     /**
-     * Registers the given FCM [token] with the Dyplink backend.
+     * Registers the given [token] with the Dyplink backend on the given
+     * [provider] channel.
      *
+     * Registering a channel leaves the other channels' tokens registered —
+     * a device holding both an FCM token and a Mi Push regId keeps both.
+     *
+     * @param token    the registration token or regId issued by [provider].
+     * @param provider the delivery channel the token belongs to.
      * @throws RuntimeException when the server returns a non-2xx status.
      */
-    suspend fun registerToken(token: String): Unit = withContext(Dispatchers.IO) {
+    suspend fun registerToken(
+        token: String,
+        provider: PushProvider = PushProvider.FCM,
+    ): Unit = withContext(Dispatchers.IO) {
         val cfg = configSupplier.get()
 
         val body = JSONObject().apply {
@@ -88,7 +102,7 @@ internal class PushTokenManager(
             put("deviceFingerprint", cfg.deviceFingerprint)
             put("token", token)
             put("platform", "android")
-            put("provider", "fcm")
+            put("provider", provider.value)
         }
 
         val request = Request.Builder()
@@ -108,23 +122,39 @@ internal class PushTokenManager(
             }
         }
 
-        currentToken = token
-        Log.d(TAG, "Push token registered successfully")
+        registeredTokens[provider] = token
+        Log.d(TAG, "Push token registered successfully (${provider.value})")
     }
 
     // ── Unregistration ──────────────────────────────────────────────
 
     /**
-     * Unregisters the current (or latest known) FCM token from the
-     * Dyplink backend.
+     * Unregisters every registered token from the Dyplink backend.
+     *
+     * Each channel is a separate row on the server, so each one needs its
+     * own DELETE — unregistering only the most recently registered token
+     * would leave the other channel live and still delivering.
+     *
+     * If nothing is registered locally we fall back to the current FCM
+     * token, so a logout still cleans up after a process restart.
      *
      * This is a best-effort operation — server errors are logged but
      * not re-thrown so that the local state is always cleared.
      */
-    suspend fun unregisterCurrentToken(): Unit = withContext(Dispatchers.IO) {
+    suspend fun unregisterAllTokens(): Unit = withContext(Dispatchers.IO) {
         val cfg = configSupplier.get()
-        val token = currentToken ?: FirebaseMessaging.getInstance().token.await()
+        val tokens = registeredTokens.values.toList().ifEmpty {
+            listOf(FirebaseMessaging.getInstance().token.await())
+        }
 
+        tokens.forEach { token -> unregisterToken(cfg, token) }
+
+        registeredTokens.clear()
+        Log.d(TAG, "Push tokens unregistered (local state cleared)")
+    }
+
+    /** Sends a single best-effort DELETE for [token]. */
+    private fun unregisterToken(cfg: Config, token: String) {
         val url = "${cfg.baseUrl}/api/push-tokens/unregister".toHttpUrl()
             .newBuilder()
             .addQueryParameter("projectId", cfg.projectId)
@@ -147,9 +177,6 @@ internal class PushTokenManager(
         } catch (e: Exception) {
             Log.w(TAG, "Push token unregister failed", e)
         }
-
-        currentToken = null
-        Log.d(TAG, "Push token unregistered (local state cleared)")
     }
 
     // ── Companion ───────────────────────────────────────────────────

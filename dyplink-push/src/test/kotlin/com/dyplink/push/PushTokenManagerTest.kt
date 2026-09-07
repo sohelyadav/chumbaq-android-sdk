@@ -23,7 +23,7 @@ import java.util.concurrent.TimeUnit
  * Uses OkHttp [MockWebServer] to verify that the correct HTTP requests
  * are sent to the Dyplink backend and that responses are handled
  * properly. Firebase is not involved — we bypass [registerCurrentToken]
- * and test [registerToken] / [unregisterCurrentToken] directly with a
+ * and test [registerToken] / [unregisterAllTokens] directly with a
  * pre-set token.
  */
 class PushTokenManagerTest {
@@ -36,6 +36,7 @@ class PushTokenManagerTest {
     private val testApiKey = "key_test_abc"
     private val testFingerprint = "fp_device_xyz"
     private val testToken = "fcm_token_999"
+    private val testMiRegId = "mi_regid_777"
 
     @Before
     fun setUp() {
@@ -175,17 +176,17 @@ class PushTokenManagerTest {
         assertFalse("isRegistered should be false after failure", manager.isRegistered)
     }
 
-    // ── unregisterCurrentToken ──────────────────────────────────────
+    // ── unregisterAllTokens ─────────────────────────────────────────
 
     @Test
-    fun `unregisterCurrentToken sends DELETE with correct query params`() = runTest {
-        // First register so currentToken is set
+    fun `unregisterAllTokens sends DELETE with correct query params`() = runTest {
+        // First register so there is a token to unregister
         server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
         manager.registerToken(testToken)
 
         // Now unregister
         server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
-        manager.unregisterCurrentToken()
+        manager.unregisterAllTokens()
 
         // Skip the register request
         server.takeRequest(2, TimeUnit.SECONDS)
@@ -208,7 +209,7 @@ class PushTokenManagerTest {
     }
 
     @Test
-    fun `unregisterCurrentToken clears registered state`() = runTest {
+    fun `unregisterAllTokens clears registered state`() = runTest {
         // Register first
         server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
         manager.registerToken(testToken)
@@ -216,12 +217,12 @@ class PushTokenManagerTest {
 
         // Unregister
         server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
-        manager.unregisterCurrentToken()
+        manager.unregisterAllTokens()
         assertFalse("Should not be registered after unregister", manager.isRegistered)
     }
 
     @Test
-    fun `unregisterCurrentToken clears state even on server error`() = runTest {
+    fun `unregisterAllTokens clears state even on server error`() = runTest {
         // Register first
         server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
         manager.registerToken(testToken)
@@ -229,7 +230,7 @@ class PushTokenManagerTest {
 
         // Unregister with server error — should still clear local state
         server.enqueue(MockResponse().setResponseCode(500).setBody("error"))
-        manager.unregisterCurrentToken()
+        manager.unregisterAllTokens()
         assertFalse(
             "isRegistered should be false even when server returns error",
             manager.isRegistered,
@@ -256,7 +257,7 @@ class PushTokenManagerTest {
         manager.registerToken(testToken)
 
         server.enqueue(MockResponse().setResponseCode(204))
-        manager.unregisterCurrentToken()
+        manager.unregisterAllTokens()
 
         assertFalse(manager.isRegistered)
     }
@@ -282,5 +283,114 @@ class PushTokenManagerTest {
         val req2 = server.takeRequest(2, TimeUnit.SECONDS)!!
         val body2 = JSONObject(req2.body.readUtf8())
         assertEquals(token2, body2.getString("token"))
+    }
+
+    // ── provider channels ───────────────────────────────────────────
+
+    @Test
+    fun `registerToken with MI_PUSH sends the mi_push provider`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+
+        manager.registerToken(testMiRegId, PushProvider.MI_PUSH)
+
+        val request = server.takeRequest(2, TimeUnit.SECONDS)
+        assertNotNull("Expected a request to be made", request)
+        assertEquals("/api/push-tokens/register", request!!.path)
+
+        val body = JSONObject(request.body.readUtf8())
+        assertEquals(testMiRegId, body.getString("token"))
+        assertEquals("android", body.getString("platform"))
+        assertEquals("mi_push", body.getString("provider"))
+    }
+
+    @Test
+    fun `isRegistered is true when only the mi push channel is registered`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+        manager.registerToken(testMiRegId, PushProvider.MI_PUSH)
+
+        assertTrue("A vendor channel alone counts as registered", manager.isRegistered)
+    }
+
+    @Test
+    fun `registering mi push keeps the fcm token registered`() = runTest {
+        registerBothChannels()
+
+        // Both channels are still live server-side, so both must be torn down.
+        enqueueOk(2)
+        manager.unregisterAllTokens()
+
+        skipRequests(2)
+        val unregistered = setOf(takeUnregisteredToken(), takeUnregisteredToken())
+        assertEquals(setOf(testToken, testMiRegId), unregistered)
+    }
+
+    @Test
+    fun `re-registering the same channel replaces that channel's token`() = runTest {
+        enqueueOk(2)
+        manager.registerToken("fcm_old")
+        manager.registerToken("fcm_new")
+
+        enqueueOk(1)
+        manager.unregisterAllTokens()
+
+        skipRequests(2)
+        assertEquals("fcm_new", takeUnregisteredToken())
+        assertEquals("Only one channel was ever registered", 3, server.requestCount)
+    }
+
+    // ── unregisterAllTokens across channels ─────────────────────────
+
+    @Test
+    fun `unregisterAllTokens unregisters every registered channel`() = runTest {
+        registerBothChannels()
+
+        enqueueOk(2)
+        manager.unregisterAllTokens()
+
+        assertEquals("Expected one DELETE per channel", 4, server.requestCount)
+        assertFalse("No channel should remain registered", manager.isRegistered)
+    }
+
+    @Test
+    fun `unregisterAllTokens clears every channel even on server error`() = runTest {
+        registerBothChannels()
+
+        server.enqueue(MockResponse().setResponseCode(500).setBody("error"))
+        server.enqueue(MockResponse().setResponseCode(500).setBody("error"))
+        manager.unregisterAllTokens()
+
+        assertFalse(
+            "isRegistered should be false even when the server returns errors",
+            manager.isRegistered,
+        )
+    }
+
+    // ── helpers ─────────────────────────────────────────────────────
+
+    private fun enqueueOk(count: Int) {
+        repeat(count) { server.enqueue(MockResponse().setResponseCode(200).setBody("{}")) }
+    }
+
+    /** Registers an FCM token and a Mi Push regId, consuming two responses. */
+    private suspend fun registerBothChannels() {
+        enqueueOk(2)
+        manager.registerToken(testToken)
+        manager.registerToken(testMiRegId, PushProvider.MI_PUSH)
+    }
+
+    private fun skipRequests(count: Int) {
+        repeat(count) { server.takeRequest(2, TimeUnit.SECONDS) }
+    }
+
+    /** Takes the next request, asserts it is an unregister DELETE, returns its token. */
+    private fun takeUnregisteredToken(): String {
+        val request = server.takeRequest(2, TimeUnit.SECONDS)
+        assertNotNull("Expected an unregister request", request)
+        assertEquals("DELETE", request!!.method)
+
+        val url = request.requestUrl!!
+        assertEquals("/api/push-tokens/unregister", url.encodedPath)
+        assertEquals(testProjectId, url.queryParameter("projectId"))
+        return url.queryParameter("token")!!
     }
 }
