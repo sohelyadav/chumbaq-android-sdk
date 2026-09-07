@@ -1,13 +1,16 @@
 package com.dyplink.push
 
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import io.mockk.every
 import io.mockk.mockk
+import io.mockk.spyk
 import io.mockk.mockkObject
 import io.mockk.unmockkAll
 import io.mockk.verify
 import org.junit.After
+import org.junit.Before
 import org.junit.Test
 
 /**
@@ -19,7 +22,17 @@ import org.junit.Test
  */
 class PushClickReceiverTest {
 
-    private val receiver = PushClickReceiver()
+    // Spied so goAsync() can be stubbed. The receiver calls it to keep the
+    // process alive while the click is reported, but under unit tests there is
+    // no real broadcast in flight and the framework hands back null, so the
+    // completion callback would NPE on something the test is not about.
+    private val receiver = spyk(PushClickReceiver())
+    private val pendingResult = mockk<BroadcastReceiver.PendingResult>(relaxed = true)
+
+    @Before
+    fun setUp() {
+        every { receiver.goAsync() } returns pendingResult
+    }
 
     @After
     fun tearDown() {
@@ -29,7 +42,7 @@ class PushClickReceiverTest {
     @Test
     fun `onReceive reports click and forwards target intent when campaign id present`() {
         mockkObject(DyplinkPush)
-        every { DyplinkPush.reportClick(any()) } returns Unit
+        every { DyplinkPush.reportClick(any(), any(), any()) } returns Unit
 
         val context = mockk<Context>(relaxed = true)
         val targetIntent = mockk<Intent>(relaxed = true)
@@ -41,7 +54,10 @@ class PushClickReceiverTest {
 
         receiver.onReceive(context, receivedIntent)
 
-        verify(exactly = 1) { DyplinkPush.reportClick("camp_1") }
+        // Three arguments, not one: the action id distinguishes a tap on the
+        // notification from a tap on one of its buttons, and the callback is
+        // what releases the goAsync result once the report is away.
+        verify(exactly = 1) { DyplinkPush.reportClick("camp_1", any(), any()) }
         verify(exactly = 1) { targetIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK) }
         verify(exactly = 1) { context.startActivity(targetIntent) }
     }
@@ -67,7 +83,7 @@ class PushClickReceiverTest {
     @Test
     fun `onReceive does not throw when target intent is missing`() {
         mockkObject(DyplinkPush)
-        every { DyplinkPush.reportClick(any()) } returns Unit
+        every { DyplinkPush.reportClick(any(), any(), any()) } returns Unit
 
         val context = mockk<Context>(relaxed = true)
         val receivedIntent = mockk<Intent>(relaxed = true)
@@ -79,7 +95,10 @@ class PushClickReceiverTest {
         // Should not throw even without a target to forward to.
         receiver.onReceive(context, receivedIntent)
 
-        verify(exactly = 1) { DyplinkPush.reportClick("camp_1") }
+        // Three arguments, not one: the action id distinguishes a tap on the
+        // notification from a tap on one of its buttons, and the callback is
+        // what releases the goAsync result once the report is away.
+        verify(exactly = 1) { DyplinkPush.reportClick("camp_1", any(), any()) }
         verify(exactly = 0) { context.startActivity(any()) }
     }
 }

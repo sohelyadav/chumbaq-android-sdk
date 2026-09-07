@@ -37,6 +37,16 @@ android {
     kotlinOptions {
         jvmTarget = "1.8"
     }
+
+    testOptions {
+        unitTests {
+            // android.util.Log and friends are stubs on the unit-test
+            // classpath and throw rather than no-op. Logging is not what any
+            // of these tests are about, so defaults let them exercise the code
+            // that matters.
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 dependencies {
@@ -51,6 +61,9 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
+    // The unit-test android.jar ships stubs that throw on every call, so the
+    // real JSONObject has to come from somewhere for these tests to run.
+    testImplementation(libs.json)
 }
 
 mavenPublishing {

@@ -36,7 +36,8 @@ object DyplinkPush {
     private lateinit var scope: CoroutineScope
 
     /**
-     * Whether a push token is currently registered with the Dyplink backend.
+     * Whether this device is registered with the Dyplink backend on at
+     * least one delivery channel (FCM, Mi Push, ...).
      *
      * Returns `false` if the module has not been initialised.
      */
@@ -126,7 +127,67 @@ object DyplinkPush {
     }
 
     /**
-     * Unregister the current FCM token from the Dyplink backend.
+     * Register a Xiaomi Mi Push regId with the Dyplink backend.
+     *
+     * MIUI throttles background FCM aggressively, so on Xiaomi devices the
+     * vendor channel is the one that actually gets delivered. Registering a
+     * regId here does not replace the FCM token — the backend keeps both,
+     * prefers the vendor channel, and still sends exactly one notification.
+     *
+     * **The host app owns the Mi Push SDK.** Dyplink deliberately does not
+     * depend on Xiaomi's closed-source AAR, so the app must:
+     *
+     * 1. Add the Mi Push SDK to its own build.
+     * 2. Call `MiPushClient.registerPush(context, appId, appKey)`.
+     * 3. Receive the regId in its own
+     *    `PushMessageReceiver.onReceiveRegisterResult`.
+     * 4. Pass that regId to this method.
+     *
+     * The app's package name must match the one registered with Xiaomi —
+     * otherwise Xiaomi never issues a regId to begin with.
+     *
+     * A 400 from this call means the deployment has no Mi Push credentials
+     * configured; the server rejects a channel it cannot deliver on. It
+     * does not mean the call is malformed.
+     *
+     * Suspending variant — call from a coroutine.
+     *
+     * @param regId the Mi Push registration id from `onReceiveRegisterResult`.
+     * @throws IllegalStateException if [init] has not been called.
+     * @throws RuntimeException on network or server errors.
+     */
+    @JvmStatic
+    suspend fun registerMiPushToken(regId: String) {
+        checkInit()
+        tokenManager.registerToken(regId, PushProvider.MI_PUSH)
+    }
+
+    /**
+     * Register a Xiaomi Mi Push regId with the Dyplink backend.
+     *
+     * Callback variant for Java callers. See the suspending overload for
+     * the host-app contract.
+     *
+     * @param regId    the Mi Push registration id from `onReceiveRegisterResult`.
+     * @param callback optional callback receiving [Result.success] or
+     *                 [Result.failure].
+     */
+    @JvmStatic
+    fun registerMiPushToken(regId: String, callback: DyplinkCallback<Unit>?) {
+        checkInit()
+        scope.launch {
+            val result = runCatching {
+                tokenManager.registerToken(regId, PushProvider.MI_PUSH)
+                Unit
+            }
+            callback?.onResult(result)
+        }
+    }
+
+    /**
+     * Unregister every push token registered for this device from the
+     * Dyplink backend — the FCM token and any vendor channel such as
+     * Mi Push.
      *
      * Call this on user logout to stop receiving push notifications
      * for the current device.
@@ -138,11 +199,12 @@ object DyplinkPush {
     @JvmStatic
     suspend fun unregisterToken() {
         checkInit()
-        tokenManager.unregisterCurrentToken()
+        tokenManager.unregisterAllTokens()
     }
 
     /**
-     * Unregister the current FCM token from the Dyplink backend.
+     * Unregister every push token registered for this device from the
+     * Dyplink backend.
      *
      * Callback variant for Java callers.
      *
@@ -154,7 +216,7 @@ object DyplinkPush {
         checkInit()
         scope.launch {
             val result = runCatching {
-                tokenManager.unregisterCurrentToken()
+                tokenManager.unregisterAllTokens()
                 Unit
             }
             callback?.onResult(result)
