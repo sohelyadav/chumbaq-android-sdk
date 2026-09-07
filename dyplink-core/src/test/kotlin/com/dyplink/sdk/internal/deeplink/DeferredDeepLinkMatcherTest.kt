@@ -251,7 +251,11 @@ class DeferredDeepLinkMatcherTest {
                 match { body ->
                     val json = JSONObject(body)
                     val fp = json.getJSONObject("fingerprint")
-                    fp.getString("ip") == "" &&
+                    // `ip` is deliberately absent, not blank: the platform
+                    // validates it with @IsIP(), which rejects an empty
+                    // string and would fail the whole match request. The
+                    // server fills it in from the connection anyway.
+                    !fp.has("ip") &&
                         fp.getString("os") == "Android" &&
                         fp.getString("osVersion") == "14" &&
                         fp.getString("model") == "Pixel 8" &&
