@@ -41,6 +41,15 @@ android {
     kotlinOptions {
         jvmTarget = "1.8"
     }
+
+    testOptions {
+        unitTests {
+            // The unit-test android.jar is stubs that throw on every call, so
+            // android.util.Log takes the suite down before it reaches anything
+            // worth testing.
+            isReturnDefaultValues = true
+        }
+    }
 }
 
 dependencies {
@@ -60,6 +69,8 @@ dependencies {
     testImplementation(libs.mockk)
     testImplementation(libs.coroutines.test)
     testImplementation(libs.okhttp.mockwebserver)
+    // Real JSONObject: the stubbed one throws rather than parsing.
+    testImplementation(libs.json)
 }
 
 mavenPublishing {
