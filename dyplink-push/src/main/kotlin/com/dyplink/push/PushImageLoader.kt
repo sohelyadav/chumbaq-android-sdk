@@ -77,7 +77,7 @@ internal object PushImageLoader {
                     null
                 }
                 body == null -> null
-                else -> body.byteStream().readAtMost(MAX_BYTES)?.let { decodeScaled(it) }
+                else -> readAtMost(body.byteStream(), MAX_BYTES)?.let { decodeScaled(it) }
             }
         }
     } catch (e: Exception) {
@@ -85,12 +85,12 @@ internal object PushImageLoader {
         null
     }
 
-    /** Reads the stream, or `null` as soon as it proves longer than [limit]. */
-    private fun InputStream.readAtMost(limit: Int): ByteArray? {
+    /** Reads [stream], or `null` as soon as it proves longer than [limit]. */
+    internal fun readAtMost(stream: InputStream, limit: Int): ByteArray? {
         val buffer = ByteArray(16 * 1024)
         val out = ByteArrayOutputStream()
         while (true) {
-            val read = read(buffer)
+            val read = stream.read(buffer)
             if (read == -1) return out.toByteArray()
             if (out.size() + read > limit) {
                 Log.w(TAG, "Image exceeds ${limit}B, skipping")

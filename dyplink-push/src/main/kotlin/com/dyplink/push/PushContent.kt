@@ -34,15 +34,16 @@ internal data class PushContent(
     val isEmpty: Boolean get() = title.isEmpty() && body.isEmpty()
 
     /** Writes this payload onto [intent] so [from] can read it back. */
-    fun writeTo(intent: Intent): Intent = intent
-        .putExtra(EXTRA_TITLE, title)
-        .putExtra(EXTRA_BODY, body)
-        .putExtra(EXTRA_DEEP_LINK_URL, deepLinkUrl)
-        .putExtra(PushClickReceiver.EXTRA_CAMPAIGN_ID, campaignId)
-        .putExtra(EXTRA_IMAGE_URL, imageUrl)
-        .putExtra(EXTRA_CAROUSEL, carouselJson)
-        .putExtra(EXTRA_TIMER, timerJson)
-        .putExtra(EXTRA_ACTIONS, actionsJson)
+    fun writeTo(intent: Intent): Intent = intent.apply {
+        putExtra(EXTRA_TITLE, title)
+        putExtra(EXTRA_BODY, body)
+        putExtra(EXTRA_DEEP_LINK_URL, deepLinkUrl)
+        putExtra(PushClickReceiver.EXTRA_CAMPAIGN_ID, campaignId)
+        putExtra(EXTRA_IMAGE_URL, imageUrl)
+        putExtra(EXTRA_CAROUSEL, carouselJson)
+        putExtra(EXTRA_TIMER, timerJson)
+        putExtra(EXTRA_ACTIONS, actionsJson)
+    }
 
     internal companion object {
 
