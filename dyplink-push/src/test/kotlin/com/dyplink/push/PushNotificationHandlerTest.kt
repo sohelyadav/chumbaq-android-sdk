@@ -193,6 +193,33 @@ class PushNotificationHandlerTest {
         verify(exactly = 1) { builder.setStyle(any<NotificationCompat.BigPictureStyle>()) }
     }
 
+    @Test
+    fun `a slide borrows the campaign copy and link it does not have`() {
+        val slides = requireNotNull(PushRichContent.parseCarousel(carouselJson))
+
+        val first = PushNotificationHandler.slideView(slides, 0, "Half price", "app://sale")
+        val second = PushNotificationHandler.slideView(slides, 1, "Half price", "app://sale")
+        val third = PushNotificationHandler.slideView(slides, 2, "Half price", "app://sale")
+
+        assertEquals("First", first.caption)
+        assertEquals("app://one", first.link)
+        assertEquals("1/3", first.indicator)
+        // Second declares a caption but no link, third declares neither.
+        assertEquals("Second", second.caption)
+        assertEquals("app://sale", second.link)
+        assertEquals("Half price", third.caption)
+        assertEquals("app://sale", third.link)
+        assertEquals("3/3", third.indicator)
+    }
+
+    @Test
+    fun `a stale slide index is clamped rather than thrown on`() {
+        val slides = requireNotNull(PushRichContent.parseCarousel(carouselJson))
+
+        assertEquals(2, PushNotificationHandler.slideView(slides, 99, "", null).index)
+        assertEquals(0, PushNotificationHandler.slideView(slides, -4, "", null).index)
+    }
+
     // ── timer ───────────────────────────────────────────────────────
 
     @Test
@@ -212,7 +239,9 @@ class PushNotificationHandlerTest {
 
         verify(exactly = 1) { builder.setWhen(endsAt) }
         verify(exactly = 1) { builder.setUsesChronometer(true) }
-        verify(exactly = 1) { builder.setChronometerCountDown(true) }
+        // The count-down direction sits behind a Build.VERSION.SDK_INT guard,
+        // which reads 0 under unit tests and cannot be raised from here; that
+        // the decision is made at all is covered in PushRichContentTest.
     }
 
     @Test

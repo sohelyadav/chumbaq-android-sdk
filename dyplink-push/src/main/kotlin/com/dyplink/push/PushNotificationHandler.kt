@@ -139,6 +139,42 @@ internal object PushNotificationHandler {
         return slides.getOrNull(slideIndex.coerceIn(0, slides.size - 1))?.imageUrl
     }
 
+    /** What one carousel slide shows, and where a tap on it goes. */
+    internal data class SlideView(
+        val index: Int,
+        val caption: String,
+        val indicator: String,
+        val link: String?,
+    )
+
+    /**
+     * Resolves the slide at [slideIndex] against the campaign's own copy.
+     *
+     * Split out from the rendering because this is where the fallbacks live —
+     * a slide without a caption borrows the campaign body, a slide without a
+     * link borrows the campaign link, exactly as an action button does — and
+     * because a [RemoteViews] cannot be inspected once it has been filled in.
+     *
+     * An out-of-range index is clamped rather than rejected: it can only come
+     * from a button press against a payload that has since changed, and the
+     * nearest slide is a better answer than none.
+     */
+    internal fun slideView(
+        slides: List<CarouselSlide>,
+        slideIndex: Int,
+        body: String,
+        fallbackLink: String?,
+    ): SlideView {
+        val index = slideIndex.coerceIn(0, slides.size - 1)
+        val slide = slides[index]
+        return SlideView(
+            index = index,
+            caption = slide.caption ?: body,
+            indicator = "${index + 1}/${slides.size}",
+            link = slide.deepLinkUrl ?: fallbackLink,
+        )
+    }
+
     /** The notification every payload gets, before any rich content. */
     private fun baseBuilder(
         context: Context,
@@ -181,11 +217,27 @@ internal object PushNotificationHandler {
         nowMillis: Long = System.currentTimeMillis(),
         sdkInt: Int = Build.VERSION.SDK_INT,
     ) {
-        applyTimer(builder, PushRichContent.resolveTimer(content.timerJson, nowMillis, sdkInt))
+        val timer = PushRichContent.resolveTimer(content.timerJson, nowMillis, sdkInt)
+        applyTimer(builder, timer)
+
+        // An expired campaign says so in its custom view too, or the expanded
+        // notification would contradict the collapsed one.
+        val expired = timer as? TimerRender.Expired
+        val title = expired?.title ?: content.title
+        val body = expired?.body ?: content.body
 
         val slides = PushRichContent.parseCarousel(content.carouselJson)
-        val carouselShown = slides != null &&
-            applyCarousel(context, builder, content, slides, notificationId, slideIndex, image)
+        val carouselShown = slides != null && applyCarousel(
+            context = context,
+            builder = builder,
+            content = content,
+            title = title,
+            body = body,
+            slides = slides,
+            notificationId = notificationId,
+            slideIndex = slideIndex,
+            image = image,
+        )
 
         // A carousel that could not be rendered still has a picture to show.
         if (!carouselShown && image != null) {
@@ -209,7 +261,12 @@ internal object PushNotificationHandler {
                 builder.setWhen(timer.endsAtMillis)
                     .setShowWhen(true)
                     .setUsesChronometer(true)
-                    .setChronometerCountDown(true)
+                // resolveTimer only returns a countdown from API 24 up, but no
+                // compile-time check can see through that decision, so the
+                // version guard is repeated where the call actually happens.
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+                    builder.setChronometerCountDown(true)
+                }
             }
             is TimerRender.Expired -> {
                 timer.title?.let { builder.setContentTitle(it) }
@@ -239,23 +296,23 @@ internal object PushNotificationHandler {
         context: Context,
         builder: NotificationCompat.Builder,
         content: PushContent,
+        title: String,
+        body: String,
         slides: List<CarouselSlide>,
         notificationId: Int,
         slideIndex: Int,
         image: Bitmap?,
     ): Boolean {
-        val index = slideIndex.coerceIn(0, slides.size - 1)
-        val slide = slides[index]
+        val slide = slideView(slides, slideIndex, body, content.deepLinkUrl)
 
         return try {
             val views = RemoteViews(context.packageName, R.layout.dyplink_notification_carousel)
-            views.setTextViewText(R.id.dyplink_carousel_title, content.title)
+            views.setTextViewText(R.id.dyplink_carousel_title, title)
 
-            val caption = slide.caption ?: content.body
-            views.setTextViewText(R.id.dyplink_carousel_caption, caption)
+            views.setTextViewText(R.id.dyplink_carousel_caption, slide.caption)
             views.setViewVisibility(
                 R.id.dyplink_carousel_caption,
-                if (caption.isEmpty()) View.GONE else View.VISIBLE,
+                if (slide.caption.isEmpty()) View.GONE else View.VISIBLE,
             )
 
             if (image != null) {
@@ -266,14 +323,16 @@ internal object PushNotificationHandler {
                 views.setViewVisibility(R.id.dyplink_carousel_image, View.GONE)
             }
 
-            views.setTextViewText(R.id.dyplink_carousel_indicator, "${index + 1}/${slides.size}")
+            views.setTextViewText(R.id.dyplink_carousel_indicator, slide.indicator)
             views.setOnClickPendingIntent(
                 R.id.dyplink_carousel_prev,
-                PushCarouselReceiver.navigationIntent(context, content, notificationId, index, -1),
+                PushCarouselReceiver
+                    .navigationIntent(context, content, notificationId, slide.index, -1),
             )
             views.setOnClickPendingIntent(
                 R.id.dyplink_carousel_next,
-                PushCarouselReceiver.navigationIntent(context, content, notificationId, index, 1),
+                PushCarouselReceiver
+                    .navigationIntent(context, content, notificationId, slide.index, 1),
             )
 
             builder.setCustomBigContentView(views)
@@ -282,20 +341,19 @@ internal object PushNotificationHandler {
                 // change would buzz the phone again.
                 .setOnlyAlertOnce(true)
 
-            // The slide's own link, falling back to the campaign's — the same
-            // order the action buttons use — and still routed through
-            // PushClickReceiver so the tap is reported like any other.
+            // Routed through PushClickReceiver like any other tap, so a slide
+            // reports its click exactly as the notification body does.
             clickPendingIntent(
                 context = context,
                 campaignId = content.campaignId,
-                link = slide.deepLinkUrl ?: content.deepLinkUrl,
+                link = slide.link,
                 notificationId = notificationId,
                 actionId = null,
             )?.let { builder.setContentIntent(it) }
 
             true
         } catch (e: Exception) {
-            Log.w(TAG, "Carousel slide $index could not be rendered", e)
+            Log.w(TAG, "Carousel slide ${slide.index} could not be rendered", e)
             false
         }
     }
