@@ -379,17 +379,20 @@ internal object PushNotificationHandler {
             )
         }
 
+        val receiverIntent = Intent(context, PushClickReceiver::class.java).apply {
+            // PendingIntents match on everything but their extras, so two
+            // notifications on screen at once would otherwise share one
+            // instance and the second would silently retarget the first.
+            action = uniqueAction(notificationId, actionId ?: "tap")
+            putExtra(PushClickReceiver.EXTRA_CAMPAIGN_ID, campaignId)
+            putExtra(PushClickReceiver.EXTRA_ACTION_ID, actionId)
+            putExtra(PushClickReceiver.EXTRA_TARGET_INTENT, target)
+        }
+
         return PendingIntent.getBroadcast(
             context,
             0,
-            Intent(context, PushClickReceiver::class.java)
-                // PendingIntents match on everything but their extras, so two
-                // notifications on screen at once would otherwise share one
-                // instance and the second would silently retarget the first.
-                .setAction(uniqueAction(notificationId, actionId ?: "tap"))
-                .putExtra(PushClickReceiver.EXTRA_CAMPAIGN_ID, campaignId)
-                .putExtra(PushClickReceiver.EXTRA_ACTION_ID, actionId)
-                .putExtra(PushClickReceiver.EXTRA_TARGET_INTENT, target),
+            receiverIntent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
         )
     }

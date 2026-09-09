@@ -120,15 +120,15 @@ internal class PushCarouselReceiver : BroadcastReceiver() {
         ): PendingIntent? {
             val intent = content
                 .writeTo(Intent(context, PushCarouselReceiver::class.java))
-                .setAction(
-                    PushNotificationHandler.uniqueAction(
+                .apply {
+                    action = PushNotificationHandler.uniqueAction(
                         notificationId,
                         if (delta < 0) "carousel_prev" else "carousel_next",
-                    ),
-                )
-                .putExtra(EXTRA_NOTIFICATION_ID, notificationId)
-                .putExtra(EXTRA_SLIDE_INDEX, currentIndex)
-                .putExtra(EXTRA_DELTA, delta)
+                    )
+                    putExtra(EXTRA_NOTIFICATION_ID, notificationId)
+                    putExtra(EXTRA_SLIDE_INDEX, currentIndex)
+                    putExtra(EXTRA_DELTA, delta)
+                }
 
             return PendingIntent.getBroadcast(
                 context,
