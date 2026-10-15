@@ -3,6 +3,7 @@ package com.dyplink.banners.internal
 import com.dyplink.banners.model.Banner
 import com.dyplink.banners.model.BannerCategory
 import com.dyplink.sdk.DyplinkConfigBridge
+import com.dyplink.sdk.DyplinkDiagnostics
 import com.dyplink.sdk.unwrapDyplinkEnvelope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -18,36 +19,68 @@ internal class BannerApiClient {
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
 
+    /**
+     * Calls `GET /api/in-app-banners/serve/:categoryId`.
+     *
+     * Requires a valid `X-API-Key` header: the serve route is behind
+     * `ApiKeyGuard`, which scopes the widget to the key's project. Without
+     * the header every call answered 401, and because the carousel treats a
+     * failed load as "no banners" the module looked idle rather than broken.
+     */
     suspend fun fetchBanners(categoryId: String): BannerCategory = withContext(Dispatchers.IO) {
         val baseUrl = DyplinkConfigBridge.baseUrl
         val request = Request.Builder()
             .url("$baseUrl/api/in-app-banners/serve/$categoryId")
+            .addHeader("X-API-Key", DyplinkConfigBridge.apiKey)
             .get()
             .build()
 
-        val response = client.newCall(request).execute()
-        if (!response.isSuccessful) {
-            throw RuntimeException("Failed to fetch banners: ${response.code}")
-        }
+        // `use` rather than a bare `execute`: the throw below skipped the
+        // close, and OkHttp held the connection until the GC noticed —
+        // one leaked connection per failed load.
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                DyplinkDiagnostics.warn(
+                    "BannerApiClient",
+                    "serve $categoryId returned ${response.code}",
+                )
+                throw RuntimeException("Failed to fetch banners: ${response.code}")
+            }
 
-        val json = JSONObject(response.body?.string() ?: "{}")
-        // Every API response is wrapped in `{ "data": … }`; falling back to
-        // the root keeps an unwrapped body working.
-        val root = json.unwrapDyplinkEnvelope()
-        parseBannerCategory(root, categoryId)
+            val json = JSONObject(response.body?.string() ?: "{}")
+            // Every API response is wrapped in `{ "data": … }`; falling back to
+            // the root keeps an unwrapped body working.
+            val root = json.unwrapDyplinkEnvelope()
+            parseBannerCategory(root, categoryId)
+        }
     }
 
+    /**
+     * Calls `POST /api/in-app-banners/:bannerId/click`.
+     *
+     * Behind the same `ApiKeyGuard` as the serve route, so it carries the
+     * same header; fire-and-forget otherwise.
+     */
     suspend fun trackClick(bannerId: String) = withContext(Dispatchers.IO) {
         val baseUrl = DyplinkConfigBridge.baseUrl
         val request = Request.Builder()
             .url("$baseUrl/api/in-app-banners/$bannerId/click")
+            .addHeader("X-API-Key", DyplinkConfigBridge.apiKey)
             .post(okhttp3.RequestBody.create(null, ByteArray(0)))
             .build()
 
         try {
-            client.newCall(request).execute().close()
-        } catch (_: Exception) {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    DyplinkDiagnostics.warn(
+                        "BannerApiClient",
+                        "click $bannerId returned ${response.code}",
+                    )
+                }
+            }
+        } catch (e: Exception) {
             // Fire-and-forget
+            DyplinkDiagnostics.warn("BannerApiClient", "click $bannerId failed", e)
         }
     }
 
