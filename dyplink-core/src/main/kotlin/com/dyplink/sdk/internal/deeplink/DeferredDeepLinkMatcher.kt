@@ -7,6 +7,7 @@ import com.dyplink.sdk.internal.util.JsonUtils.toJsonObject
 import com.dyplink.sdk.internal.util.JsonUtils.toMap
 import com.dyplink.sdk.internal.util.Logger
 import com.dyplink.sdk.model.DeferredMatchResult
+import com.dyplink.sdk.unwrapDyplinkEnvelope
 import org.json.JSONObject
 
 /**
@@ -94,7 +95,7 @@ internal class DeferredDeepLinkMatcher(
 
         // ── 5. Parse response ──────────────────────────────────────
         val responseBody = response.body?.string().orEmpty()
-        val json = JSONObject(responseBody)
+        val json = JSONObject(responseBody).unwrapDyplinkEnvelope()
 
         val matched = json.optBoolean("matched", false)
         val linkId = json.optString("linkId", null.orEmpty()).ifEmpty { null }
