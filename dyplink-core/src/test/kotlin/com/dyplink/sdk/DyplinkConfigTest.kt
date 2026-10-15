@@ -2,6 +2,7 @@ package com.dyplink.sdk
 
 import com.dyplink.sdk.internal.util.LogLevel
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -158,6 +159,38 @@ class DyplinkConfigTest {
 
         // Chaining should return the same builder instance
         assertEquals(builder, returned)
+    }
+
+    // ── Diagnostics ────────────────────────────────────────────────
+
+    /**
+     * Off unless asked for. The SDK swallows almost every network failure
+     * by design, and this is the only way to see one — but an integration
+     * that did not ask for it must stay silent.
+     */
+    @Test
+    fun `diagnostics are off by default`() {
+        val config = DyplinkConfig.Builder(validBaseUrl, validApiKey, validProjectId).build()
+
+        assertFalse(config.diagnosticsEnabled)
+    }
+
+    @Test
+    fun `diagnostics can be enabled`() {
+        val config = DyplinkConfig.Builder(validBaseUrl, validApiKey, validProjectId)
+            .diagnostics(true)
+            .build()
+
+        assertTrue(config.diagnosticsEnabled)
+    }
+
+    @Test
+    fun `diagnostics are independent of logLevel`() {
+        val config = DyplinkConfig.Builder(validBaseUrl, validApiKey, validProjectId)
+            .logLevel(LogLevel.VERBOSE)
+            .build()
+
+        assertFalse(config.diagnosticsEnabled)
     }
 
     // ── ApiClientConfig contract ───────────────────────────────────

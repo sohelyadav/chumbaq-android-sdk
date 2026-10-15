@@ -160,6 +160,73 @@ class ConversionTrackerTest {
         assertEquals(true, meta.getBoolean("premium"))
     }
 
+    // ── Attribution keys the server will accept ─────────────────────
+
+    /**
+     * An unattributed key must be *absent*, never `JSONObject.NULL`:
+     * `@IsOptional` skips a missing property but validates an explicit
+     * null, and the service's "either shortCode or linkId" check would read
+     * one as present-and-empty.
+     *
+     * `JSONObject.put` already drops a null value instead of writing JSON
+     * `null`, so these two passed before the fix as well — they are here to
+     * keep that true, since the body is assembled key by key and an
+     * explicit null is the obvious wrong way to write "no value".
+     */
+    @Test
+    fun `trackConversion omits linkId rather than sending null`() = runTest {
+        every { preferences.attributedLinkId } returns null
+
+        tracker.trackConversion(TrackConversionParams(eventType = "signup"))
+
+        val payloadSlot = slot<String>()
+        coVerify { queueManager.enqueue(any(), any(), capture(payloadSlot)) }
+
+        val json = JSONObject(payloadSlot.captured)
+        assertEquals("default-short", json.getString("shortCode"))
+        assertFalse("linkId must be absent, not null", json.has("linkId"))
+    }
+
+    @Test
+    fun `trackConversion omits shortCode rather than sending null`() = runTest {
+        every { preferences.attributedShortCode } returns null
+
+        tracker.trackConversion(TrackConversionParams(eventType = "signup"))
+
+        val payloadSlot = slot<String>()
+        coVerify { queueManager.enqueue(any(), any(), capture(payloadSlot)) }
+
+        val json = JSONObject(payloadSlot.captured)
+        assertEquals("default-link", json.getString("linkId"))
+        assertFalse("shortCode must be absent, not null", json.has("shortCode"))
+    }
+
+    /**
+     * With neither key there is nothing to attribute to, and the server
+     * refuses the body. Queuing it anyway spent a request to be told so and
+     * then dropped the event; dropping it here is the same outcome without
+     * the round trip, and with something in the log to say why.
+     */
+    @Test
+    fun `trackConversion does not enqueue without a shortCode or linkId`() = runTest {
+        every { preferences.attributedShortCode } returns null
+        every { preferences.attributedLinkId } returns null
+
+        tracker.trackConversion(TrackConversionParams(eventType = "signup"))
+
+        coVerify(exactly = 0) { queueManager.enqueue(any(), any(), any()) }
+    }
+
+    @Test
+    fun `trackConversion still carries projectId`() = runTest {
+        tracker.trackConversion(TrackConversionParams(eventType = "signup"))
+
+        val payloadSlot = slot<String>()
+        coVerify { queueManager.enqueue(any(), any(), capture(payloadSlot)) }
+
+        assertEquals(projectId, JSONObject(payloadSlot.captured).getString("projectId"))
+    }
+
     // ── trackRevenue ────────────────────────────────────────────────
 
     @Test

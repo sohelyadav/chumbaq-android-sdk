@@ -31,6 +31,7 @@ class DyplinkConfig private constructor(
     val enableAutoDeviceInfo: Boolean,
     val deepLinkHosts: List<String>,
     val customScheme: String?,
+    val diagnosticsEnabled: Boolean,
 ) : ApiClientConfig {
 
     class Builder(
@@ -47,6 +48,7 @@ class DyplinkConfig private constructor(
         private var enableAutoDeviceInfo: Boolean = true
         private var deepLinkHosts: List<String> = emptyList()
         private var customScheme: String? = null
+        private var diagnosticsEnabled: Boolean = false
 
         fun logLevel(level: LogLevel) = apply { logLevel = level }
         fun flushInterval(seconds: Int) = apply { flushIntervalSeconds = seconds }
@@ -57,6 +59,17 @@ class DyplinkConfig private constructor(
         fun enableAutoDeviceInfo(enabled: Boolean) = apply { enableAutoDeviceInfo = enabled }
         fun deepLinkHosts(hosts: List<String>) = apply { deepLinkHosts = hosts }
         fun customScheme(scheme: String) = apply { customScheme = scheme }
+
+        /**
+         * Logs the failures the SDK otherwise swallows — a rejected
+         * conversion, an engagement event that never arrived, a banner that
+         * would not load. Off by default; independent of [logLevel], because
+         * these are drops rather than messages.
+         *
+         * Credentials are never logged. See
+         * [com.dyplink.sdk.DyplinkDiagnostics].
+         */
+        fun diagnostics(enabled: Boolean) = apply { diagnosticsEnabled = enabled }
 
         fun build(): DyplinkConfig {
             require(baseUrl.isNotBlank()) { "baseUrl must not be blank" }
@@ -79,6 +92,7 @@ class DyplinkConfig private constructor(
                 enableAutoDeviceInfo = enableAutoDeviceInfo,
                 deepLinkHosts = deepLinkHosts,
                 customScheme = customScheme,
+                diagnosticsEnabled = diagnosticsEnabled,
             )
         }
     }

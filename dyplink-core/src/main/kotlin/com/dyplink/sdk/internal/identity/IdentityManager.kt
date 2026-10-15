@@ -1,5 +1,6 @@
 package com.dyplink.sdk.internal.identity
 
+import com.dyplink.sdk.DyplinkDiagnostics
 import com.dyplink.sdk.internal.network.RequestExecutor
 import com.dyplink.sdk.internal.util.Logger
 import com.dyplink.sdk.model.DyplinkError
@@ -38,18 +39,25 @@ internal class IdentityManager(
         }
 
         val body = buildIdentifyBody(params)
-        val response = requestExecutor.post("/api/identity/identify", body.toString())
-
-        if (!response.isSuccessful) {
-            val responseBody = response.body?.string()
-            throw DyplinkError.ApiError(
-                message = "Identify failed with status ${response.code}",
-                statusCode = response.code,
-                responseBody = responseBody,
-            )
-        }
-
-        val json = JSONObject(response.body!!.string()).unwrapDyplinkEnvelope()
+        // `use` so a body-less error response is closed too; `string()`
+        // closes the body it reads, but there is nothing to read when the
+        // server answered without one.
+        val json = requestExecutor.post("/api/identity/identify", body.toString())
+            .use { response ->
+                if (!response.isSuccessful) {
+                    val responseBody = response.body?.string()
+                    DyplinkDiagnostics.warn(
+                        "IdentityManager",
+                        "identify returned ${response.code}",
+                    )
+                    throw DyplinkError.ApiError(
+                        message = "Identify failed with status ${response.code}",
+                        statusCode = response.code,
+                        responseBody = responseBody,
+                    )
+                }
+                JSONObject(response.body!!.string()).unwrapDyplinkEnvelope()
+            }
 
         // Trigger a merge when the identity has transitioned.
         val newDistinctId = fingerprintProvider.distinctId
@@ -78,7 +86,7 @@ internal class IdentityManager(
                 put("anonymousId", anonymousId)
                 put("identifiedId", identifiedId)
             }
-            requestExecutor.post("/api/identity/merge", body.toString())
+            postAndDiscard("/api/identity/merge", body.toString())
         } catch (e: Exception) {
             Logger.e("Identity merge failed: ${e.message}", e)
         }
@@ -96,7 +104,7 @@ internal class IdentityManager(
                 put("externalUserId", externalUserId)
                 put("platform", "android")
             }
-            requestExecutor.post("/api/identity/link-device", body.toString())
+            postAndDiscard("/api/identity/link-device", body.toString())
         } catch (e: Exception) {
             Logger.e("Link device failed: ${e.message}", e)
         }
@@ -114,13 +122,32 @@ internal class IdentityManager(
                 put("amount", amount)
                 put("currency", currency)
             }
-            requestExecutor.post("/api/identity/revenue", body.toString())
+            postAndDiscard("/api/identity/revenue", body.toString())
         } catch (e: Exception) {
             Logger.e("Track revenue failed: ${e.message}", e)
         }
     }
 
     // ── Private helpers ─────────────────────────────────────────────
+
+    /**
+     * POSTs a body whose response carries nothing the caller needs.
+     *
+     * The response still has to be closed: OkHttp hands back a live
+     * connection either way, and dropping the reference without closing it
+     * leaks one until the GC runs — which is where the "leaked connection"
+     * warnings in these three calls came from.
+     */
+    private suspend fun postAndDiscard(endpoint: String, body: String) {
+        requestExecutor.post(endpoint, body).use { response ->
+            if (!response.isSuccessful) {
+                DyplinkDiagnostics.warn(
+                    "IdentityManager",
+                    "$endpoint returned ${response.code}",
+                )
+            }
+        }
+    }
 
     private fun buildIdentifyBody(params: IdentifyParams): JSONObject {
         val body = JSONObject()
