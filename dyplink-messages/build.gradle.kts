@@ -44,6 +44,11 @@ android {
             // android.util.Log takes a suite down before it reaches anything
             // worth asserting.
             isReturnDefaultValues = true
+            // The dialog inflates AppCompat views, which resolve themed
+            // drawables out of the merged resource table. Without this,
+            // Robolectric has no table to resolve them from and every test
+            // that shows a dialog dies on a missing resource id.
+            isIncludeAndroidResources = true
         }
     }
 }
@@ -66,6 +71,9 @@ dependencies {
     // The stub android.jar has no working org.json, and parsing a check
     // response is most of what these tests do.
     testImplementation(libs.json)
+    // The dialog is the half of this module that only a rendered view can
+    // check — a button that fails to close the message looks fine in source.
+    testImplementation(libs.robolectric)
 }
 
 mavenPublishing {

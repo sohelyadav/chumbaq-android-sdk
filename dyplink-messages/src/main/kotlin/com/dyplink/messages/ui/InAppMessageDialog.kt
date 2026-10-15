@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.drawable.ColorDrawable
+import android.graphics.drawable.GradientDrawable
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -12,10 +13,12 @@ import android.view.View
 import android.view.ViewGroup
 import android.view.Window
 import android.widget.Button
+import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import android.app.Dialog
 import androidx.appcompat.app.AlertDialog
 import coil.load
 import com.dyplink.messages.model.InAppMessage
@@ -25,10 +28,19 @@ import com.google.android.material.bottomsheet.BottomSheetDialog
 /**
  * Renders an [InAppMessage] on screen.
  *
- * Chooses the appropriate container based on [InAppMessage.messageType]:
+ * The container comes from [InAppMessage.messageType]:
  * - `modal` / `fullscreen` → [AlertDialog]
  * - `bottom_sheet` → [BottomSheetDialog]
  * - `banner_top` / `banner_bottom` → lightweight overlay [AlertDialog]
+ *
+ * The contents come from the rest of the message: the copy, the buttons and
+ * their styles, the theme's colours and corner radius, and the picture at
+ * whichever of the three [InAppMessage.imagePosition] values the campaign
+ * chose. Every one of those is a field the dashboard offers, so anything
+ * read and then dropped here is a setting that silently does nothing.
+ *
+ * Whatever ends the message — a tapped button, a timer, the user — it is
+ * reported once and only once. See [closeReason].
  */
 internal class InAppMessageDialog(
     private val context: Context,
@@ -38,6 +50,21 @@ internal class InAppMessageDialog(
 ) {
     private val handler = Handler(Looper.getMainLooper())
     private var autoDismissRunnable: Runnable? = null
+
+    /**
+     * Why the dialog is closing, when something other than the user closing
+     * it is the reason.
+     *
+     * Android calls the dismiss listener however the dialog goes away, so
+     * without this a CTA tap reported `cta_click` *and* `dismiss`, and an
+     * auto-dismiss reported `auto_dismiss` *and* `dismiss`. `dismissRate` is
+     * dismissals over impressions, so every tap of every button counted
+     * against the message.
+     */
+    private var closeReason: String? = null
+
+    /** The dialog on screen, so a tapped button can close it. */
+    private var activeDialog: Dialog? = null
 
     fun show() {
         when (message.messageType) {
@@ -60,20 +87,10 @@ internal class InAppMessageDialog(
         dialog.window?.setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
 
         if (message.messageType == "fullscreen") {
-            dialog.window?.setLayout(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                ViewGroup.LayoutParams.MATCH_PARENT,
-            )
+            dialog.window?.setLayout(MATCH_PARENT, MATCH_PARENT)
         }
 
-        dialog.setOnShowListener { onEvent("impression", null) }
-        dialog.setOnDismissListener {
-            cancelAutoDismiss()
-            onEvent("dismiss", null)
-        }
-
-        dialog.show()
-        scheduleAutoDismiss { dialog.dismiss() }
+        present(dialog, autoDismissAfter = message.autoDismissSeconds)
     }
 
     // ── Bottom Sheet ───────────────────────────────────────────────
@@ -84,14 +101,7 @@ internal class InAppMessageDialog(
         dialog.setContentView(contentView)
         dialog.setCancelable(message.dismissOnTapOutside)
 
-        dialog.setOnShowListener { onEvent("impression", null) }
-        dialog.setOnDismissListener {
-            cancelAutoDismiss()
-            onEvent("dismiss", null)
-        }
-
-        dialog.show()
-        scheduleAutoDismiss { dialog.dismiss() }
+        present(dialog, autoDismissAfter = message.autoDismissSeconds)
     }
 
     // ── Banner ─────────────────────────────────────────────────────
@@ -108,19 +118,12 @@ internal class InAppMessageDialog(
             setBackgroundDrawable(ColorDrawable(Color.TRANSPARENT))
             val gravity = if (message.messageType == "banner_top") Gravity.TOP else Gravity.BOTTOM
             setGravity(gravity)
-            setLayout(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT)
+            setLayout(MATCH_PARENT, WRAP_CONTENT)
         }
 
-        dialog.setOnShowListener { onEvent("impression", null) }
-        dialog.setOnDismissListener {
-            cancelAutoDismiss()
-            onEvent("dismiss", null)
-        }
-
-        dialog.show()
-        // Banners auto-dismiss after 4s unless overridden
-        val delay = message.autoDismissSeconds ?: 4
-        scheduleAutoDismiss(delay) { dialog.dismiss() }
+        // A banner has no buttons to speak of and sits over the app, so it
+        // leaves on its own unless the campaign says otherwise.
+        present(dialog, autoDismissAfter = message.autoDismissSeconds ?: BANNER_AUTO_DISMISS_SECONDS)
     }
 
     // ── Content View ───────────────────────────────────────────────
@@ -128,25 +131,24 @@ internal class InAppMessageDialog(
     private fun buildContentView(compact: Boolean): View {
         val theme = message.theme
         val bgColor = parseColor(theme?.backgroundColor, Color.WHITE)
-        val radius = (theme?.borderRadius ?: 12).toFloat()
+        val hasImage = !message.imageUrl.isNullOrBlank()
+        val asBackground = hasImage && message.imagePosition == "background"
 
         val root = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(bgColor)
+            // `borderRadius` used to be read off the theme and then dropped:
+            // a flat `setBackgroundColor` has no corners to round.
+            background = GradientDrawable().apply {
+                setColor(bgColor)
+                cornerRadius = dp(theme?.borderRadius ?: DEFAULT_CORNER_RADIUS_DP).toFloat()
+            }
             setPadding(dp(16), dp(16), dp(16), dp(16))
         }
 
-        // Image
-        if (!message.imageUrl.isNullOrBlank() && message.imagePosition != "background") {
-            val imageView = ImageView(context).apply {
-                scaleType = ImageView.ScaleType.CENTER_CROP
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    if (compact) dp(120) else dp(200),
-                )
-            }
-            imageView.load(message.imageUrl)
-            root.addView(imageView)
+        // An image above the copy. `center` places it after the body
+        // instead, and `background` puts it behind everything — see below.
+        if (hasImage && message.imagePosition == "top") {
+            root.addView(imageView(compact))
         }
 
         // Title
@@ -163,11 +165,7 @@ internal class InAppMessageDialog(
         // Body
         if (!message.body.isNullOrBlank()) {
             val scroll = ScrollView(context).apply {
-                layoutParams = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    0,
-                    1f,
-                )
+                layoutParams = LinearLayout.LayoutParams(MATCH_PARENT, 0, 1f)
             }
             val bodyView = TextView(context).apply {
                 text = message.body
@@ -176,6 +174,13 @@ internal class InAppMessageDialog(
             }
             scroll.addView(bodyView)
             root.addView(scroll)
+        }
+
+        // `center` is "between the copy and the call to action", which is
+        // the only reading that differs from `top` — and it never rendered
+        // at all while the only branch here tested for `top`.
+        if (hasImage && message.imagePosition == "center") {
+            root.addView(imageView(compact))
         }
 
         // Buttons
@@ -190,29 +195,98 @@ internal class InAppMessageDialog(
                 setBackgroundColor(btnColor)
                 setTextColor(if (btn.style == "text") Color.parseColor("#1976D2") else Color.WHITE)
                 setPadding(dp(16), dp(8), dp(16), dp(8))
-                val params = LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT,
-                )
+                val params = LinearLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT)
                 params.topMargin = dp(8)
                 layoutParams = params
-                setOnClickListener { onButtonAction(btn) }
+                setOnClickListener { onButtonTapped(btn) }
             }
             root.addView(buttonView)
         }
 
-        return root
+        if (!asBackground) return root
+
+        // `background` fills the card behind the copy. A scrim goes between
+        // the two, because the theme's text colours were chosen against the
+        // background *colour* and a photograph can swallow either of them.
+        return FrameLayout(context).apply {
+            addView(
+                imageView(compact = false),
+                FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT),
+            )
+            addView(
+                View(context).apply { setBackgroundColor(parseColor(theme?.overlayColor, BACKGROUND_SCRIM)) },
+                FrameLayout.LayoutParams(MATCH_PARENT, MATCH_PARENT),
+            )
+            root.background = null
+            addView(root, FrameLayout.LayoutParams(MATCH_PARENT, WRAP_CONTENT))
+            background = GradientDrawable().apply {
+                setColor(bgColor)
+                cornerRadius = dp(theme?.borderRadius ?: DEFAULT_CORNER_RADIUS_DP).toFloat()
+            }
+            clipToOutline = true
+        }
+    }
+
+    /** The message's image, sized for the container it is going into. */
+    private fun imageView(compact: Boolean): ImageView =
+        ImageView(context).apply {
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            layoutParams = LinearLayout.LayoutParams(
+                MATCH_PARENT,
+                if (compact) dp(120) else dp(200),
+            )
+            load(message.imageUrl)
+        }
+
+    // ── Lifecycle ──────────────────────────────────────────────────
+
+    /**
+     * Shows [dialog], reports its impression and dismissal, and arms
+     * auto-dismiss where the message asks for one.
+     *
+     * The dismissal is only reported when nothing else has already explained
+     * the close — see [closeReason].
+     */
+    private fun present(dialog: Dialog, autoDismissAfter: Int?) {
+        activeDialog = dialog
+
+        dialog.setOnShowListener { onEvent("impression", null) }
+        dialog.setOnDismissListener {
+            cancelAutoDismiss()
+            activeDialog = null
+            if (closeReason == null) onEvent("dismiss", null)
+        }
+
+        dialog.show()
+
+        val seconds = autoDismissAfter ?: return
+        autoDismissRunnable = Runnable { close("auto_dismiss") }
+            .also { handler.postDelayed(it, seconds * 1000L) }
+    }
+
+    /** Closes the message for a reason that is not the user dismissing it. */
+    private fun close(reason: String) {
+        val dialog = activeDialog ?: return
+        closeReason = reason
+        if (reason == "auto_dismiss") onEvent(reason, null)
+        dialog.dismiss()
+    }
+
+    /**
+     * A tapped button ends the message.
+     *
+     * Nothing used to close it: a button whose action is `dismiss` did
+     * literally nothing, and a deep-link button opened its destination and
+     * left the message sitting over the app for the user to come back to.
+     * The handler that owns the action runs first, so a deep link is already
+     * on its way before the dialog goes.
+     */
+    private fun onButtonTapped(button: MessageButton) {
+        onButtonAction(button)
+        close("cta_click")
     }
 
     // ── Helpers ────────────────────────────────────────────────────
-
-    private fun scheduleAutoDismiss(delaySecs: Int? = message.autoDismissSeconds, action: () -> Unit) {
-        val effectiveDelaySecs = delaySecs ?: return
-        autoDismissRunnable = Runnable {
-            onEvent("auto_dismiss", null)
-            action()
-        }.also { handler.postDelayed(it, effectiveDelaySecs * 1000L) }
-    }
 
     private fun cancelAutoDismiss() {
         autoDismissRunnable?.let { handler.removeCallbacks(it) }
@@ -227,4 +301,15 @@ internal class InAppMessageDialog(
 
     private fun dp(value: Int): Int =
         (value * context.resources.displayMetrics.density).toInt()
+
+    private companion object {
+        const val BANNER_AUTO_DISMISS_SECONDS = 4
+        const val DEFAULT_CORNER_RADIUS_DP = 12
+
+        /** Black at 40%, dark enough for white copy over a bright photo. */
+        const val BACKGROUND_SCRIM = 0x66000000.toInt()
+
+        const val MATCH_PARENT = ViewGroup.LayoutParams.MATCH_PARENT
+        const val WRAP_CONTENT = ViewGroup.LayoutParams.WRAP_CONTENT
+    }
 }
