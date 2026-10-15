@@ -65,9 +65,14 @@ internal class DeferredDeepLinkMatcher(
         val deviceInfo = deviceInfoCollector.collect()
 
         // ── 4. Build and send request ──────────────────────────────
-        // Only include fingerprint when we have real device data — the
-        // platform validates `ip` with @IsIP(), so omit the object
-        // entirely rather than sending an empty string.
+        // Only include fingerprint when we have real device data:
+        // `FingerprintDto.os` is required, so a fingerprint built from
+        // nothing is a 400 for the whole match.
+        //
+        // No `ip` goes in it. The server derives the client address from
+        // the request itself and the DTO refuses one in the body —
+        // attribution joins an install to a click on that value, so an IP
+        // a caller can name is a click a caller can steal.
         val bodyMap = mutableMapOf<String, Any?>()
 
         val os = (deviceInfo["os"] as? String).orEmpty().ifBlank { "Android" }

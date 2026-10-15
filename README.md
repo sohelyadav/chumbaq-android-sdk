@@ -75,11 +75,40 @@ should do it there.
 
 ## Push notifications
 
-Declare the SDK's messaging service, and that is the whole integration:
+One call, and that is the whole integration:
+
+```kotlin
+DyplinkPush.init(context)
+DyplinkPush.registerToken(fcmToken)   // or let the service pick it up
+```
+
+`DyplinkMessagingService` is declared in the module's own manifest, so
+nothing needs adding to the app's. It registers tokens, reports delivery,
+impressions, clicks and dismissals, and renders the notification —
+including the rich content no provider carries natively.
+
+### Handling messages yourself
+
+Subclass `DyplinkMessagingService` and declare the subclass. Return `true`
+from `onDyplinkMessage` to suppress the default notification; reporting and
+token registration keep working either way.
+
+```kotlin
+class MyMessagingService : DyplinkMessagingService() {
+    override fun onDyplinkMessage(message: RemoteMessage): Boolean {
+        // …handle it; true means "do not show the default notification"
+        return true
+    }
+
+    override fun onDyplinkTokenRefresh(token: String) {
+        // The Dyplink backend has already been told.
+    }
+}
+```
 
 ```xml
 <service
-    android:name="com.dyplink.push.DyplinkMessagingService"
+    android:name=".MyMessagingService"
     android:exported="false">
     <intent-filter>
         <action android:name="com.google.firebase.MESSAGING_EVENT" />
@@ -87,20 +116,20 @@ Declare the SDK's messaging service, and that is the whole integration:
 </service>
 ```
 
-```kotlin
-DyplinkPush.init(context)
-DyplinkPush.registerToken(fcmToken)   // or let the service pick it up
+### Keeping your own service instead
+
+An app that must keep its own `FirebaseMessagingService` can remove the
+SDK's at manifest-merge time, so the two do not both receive messages:
+
+```xml
+<service
+    android:name="com.dyplink.push.DyplinkMessagingService"
+    tools:node="remove" />
 ```
 
-It registers tokens, reports delivery and clicks, and renders the
-notification — including the rich content no provider carries natively.
-
-An app that already has its own `FirebaseMessagingService` should **not**
-use this one. Call `DyplinkPush.onTokenRefresh(token)` and
-`PushNotificationHandler.showNotification(context, message)` from the
-existing service instead; `DyplinkMessagingService` is a thin wrapper around
-exactly those two calls, and `onDyplinkMessage` is there to take the message
-over without replacing the service.
+That needs `xmlns:tools="http://schemas.android.com/tools"` on the
+`<manifest>` element, and it gives up `delivered` reporting and the rich
+notification rendering — so subclassing is the supported path.
 
 ### What the notification can show
 

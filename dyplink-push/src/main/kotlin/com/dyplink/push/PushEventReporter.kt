@@ -77,10 +77,33 @@ internal class PushEventReporter(
     }
 
     /**
+     * Reports an `impression` event for the given [campaignId].
+     *
+     * Reported when the notification reaches the shade, which is the first
+     * moment the user could have seen it — a different fact from the
+     * `delivered` that precedes it, and the one the campaign report's
+     * impression column counts.
+     */
+    suspend fun reportImpression(campaignId: String) {
+        reportEvent(campaignId, PushEventType.IMPRESSION)
+    }
+
+    /**
      * Reports a `click` event for the given [campaignId].
      */
     suspend fun reportClick(campaignId: String, actionId: String? = null) {
         reportEvent(campaignId, PushEventType.CLICK, actionId)
+    }
+
+    /**
+     * Reports a `dismissed` event for the given [campaignId].
+     *
+     * Only a deliberate dismissal — a swipe, or Clear all. Android does not
+     * fire a notification's delete intent when a tap auto-cancels it, so
+     * this never double-counts a click.
+     */
+    suspend fun reportDismissed(campaignId: String) {
+        reportEvent(campaignId, PushEventType.DISMISSED)
     }
 
     /**

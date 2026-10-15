@@ -4,6 +4,7 @@ import com.dyplink.messages.model.InAppMessage
 import com.dyplink.messages.model.MessageButton
 import com.dyplink.messages.model.MessageTheme
 import com.dyplink.sdk.DyplinkConfigBridge
+import com.dyplink.sdk.DyplinkDiagnostics
 import com.dyplink.sdk.unwrapDyplinkEnvelope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -57,12 +58,19 @@ internal class MessageApiClient {
             .post(body.toString().toRequestBody(JSON_MEDIA_TYPE))
             .build()
 
-        val response = client.newCall(request).execute()
-        if (!response.isSuccessful) {
-            throw RuntimeException("checkMessages failed: ${response.code}")
-        }
+        // `use` rather than a bare `execute`: the throw below skipped the
+        // close, leaking the connection on every failed check.
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                DyplinkDiagnostics.warn(
+                    "MessageApiClient",
+                    "checkMessages returned ${response.code}",
+                )
+                throw RuntimeException("checkMessages failed: ${response.code}")
+            }
 
-        parseResponse(response.body?.string())
+            parseResponse(response.body?.string())
+        }
     }
 
     /**
@@ -92,7 +100,14 @@ internal class MessageApiClient {
             .post(body.toString().toRequestBody(JSON_MEDIA_TYPE))
             .build()
 
-        client.newCall(request).execute().close()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                DyplinkDiagnostics.warn(
+                    "MessageApiClient",
+                    "$eventType for $messageId returned ${response.code}",
+                )
+            }
+        }
     }
 
     // ── Parsing ────────────────────────────────────────────────────
