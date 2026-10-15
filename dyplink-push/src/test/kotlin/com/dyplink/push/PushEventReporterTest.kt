@@ -119,6 +119,54 @@ class PushEventReporterTest {
         assertEquals("click", body.getString("type"))
     }
 
+    // ── reportImpression / reportDismissed ──────────────────────────
+
+    /**
+     * Both were defined on [PushEventType] and accepted by the server, and
+     * neither was ever sent — so both report columns were permanently zero.
+     */
+    @Test
+    fun `reportImpression sends correct JSON to events endpoint`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"data":{"recorded":true}}"""))
+
+        reporter.reportImpression(testCampaignId)
+
+        val request = server.takeRequest(2, TimeUnit.SECONDS)
+        assertNotNull("Expected a request to be made", request)
+
+        val body = JSONObject(request!!.body.readUtf8())
+        assertEquals(testCampaignId, body.getString("campaignId"))
+        assertEquals("impression", body.getString("type"))
+        assertEquals(testApiKey, request.getHeader("X-API-Key"))
+    }
+
+    @Test
+    fun `reportDismissed sends correct JSON to events endpoint`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(200).setBody("""{"data":{"recorded":true}}"""))
+
+        reporter.reportDismissed(testCampaignId)
+
+        val request = server.takeRequest(2, TimeUnit.SECONDS)
+        assertNotNull("Expected a request to be made", request)
+
+        val body = JSONObject(request!!.body.readUtf8())
+        assertEquals(testCampaignId, body.getString("campaignId"))
+        assertEquals("dismissed", body.getString("type"))
+    }
+
+    /**
+     * The server only accepts the four a device is allowed to report;
+     * `sent` is written server-side and would let a client forge its own
+     * frequency-cap history.
+     */
+    @Test
+    fun `every reportable event type is one the server accepts`() {
+        assertEquals(
+            listOf("delivered", "impression", "click", "dismissed"),
+            PushEventType.values().map { it.value },
+        )
+    }
+
     // ── failure handling ────────────────────────────────────────────
 
     @Test

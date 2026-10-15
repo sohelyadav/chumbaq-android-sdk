@@ -2,8 +2,10 @@ package com.dyplink.banners.internal
 
 import com.dyplink.sdk.DyplinkConfigBridge
 import kotlinx.coroutines.test.runTest
+import okhttp3.mockwebserver.Dispatcher
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import okhttp3.mockwebserver.RecordedRequest
 import org.junit.After
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
@@ -22,6 +24,7 @@ class BannerApiClientTest {
 
         // Point DyplinkConfigBridge at our mock server
         DyplinkConfigBridge.baseUrl = server.url("").toString().trimEnd('/')
+        DyplinkConfigBridge.apiKey = API_KEY
 
         apiClient = BannerApiClient()
     }
@@ -30,6 +33,7 @@ class BannerApiClientTest {
     fun tearDown() {
         server.shutdown()
         DyplinkConfigBridge.baseUrl = ""
+        DyplinkConfigBridge.apiKey = ""
     }
 
     // ── fetchBanners ────────────────────────────────────────────────
@@ -43,6 +47,7 @@ class BannerApiClientTest {
         val recorded = server.takeRequest()
         assertEquals("GET", recorded.method)
         assertEquals("/api/in-app-banners/serve/cat-123", recorded.path)
+        assertEquals(API_KEY, recorded.getHeader("X-API-Key"))
     }
 
     @Test
@@ -120,11 +125,80 @@ class BannerApiClientTest {
         val recorded = server.takeRequest()
         assertEquals("POST", recorded.method)
         assertEquals("/api/in-app-banners/banner-456/click", recorded.path)
+        assertEquals(API_KEY, recorded.getHeader("X-API-Key"))
+    }
+
+    // ── Authentication ──────────────────────────────────────────────
+
+    /**
+     * Both routes sit behind `ApiKeyGuard`. Without the header the server
+     * answers 401 and the carousel shows nothing — which is what it did on
+     * every real deployment, while these tests passed against a mock server
+     * that never checked.
+     */
+    @Test
+    fun `fetchBanners is rejected by a server that requires the API key`() = runTest {
+        server.dispatcher = apiKeyRequiringDispatcher()
+
+        val category = apiClient.fetchBanners("cat-123")
+
+        // Reached the handler rather than the 401 branch.
+        assertEquals(2, category.banners.size)
+    }
+
+    @Test
+    fun `trackClick is rejected by a server that requires the API key`() = runTest {
+        server.dispatcher = apiKeyRequiringDispatcher()
+
+        apiClient.trackClick("banner-456")
+
+        val recorded = server.takeRequest()
+        assertEquals(API_KEY, recorded.getHeader("X-API-Key"))
+    }
+
+    // ── Connection hygiene ──────────────────────────────────────────
+
+    /**
+     * A non-2xx used to throw before anything read or closed the body, so
+     * OkHttp could not return the connection to the pool and logged a leak
+     * — on every banner load, because every one of them was a 401.
+     *
+     * A reused connection is the observable proof: `sequenceNumber` counts
+     * requests on the *same* socket, so a second request only reports 1 if
+     * the first response was closed.
+     */
+    @Test
+    fun `a failed fetch leaves its connection reusable`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(500).setBody("Internal Server Error"))
+        server.enqueue(MockResponse().setResponseCode(200).setBody(VALID_RESPONSE))
+
+        runCatching { apiClient.fetchBanners("cat-123") }
+        apiClient.fetchBanners("cat-123")
+
+        server.takeRequest()
+        assertEquals(1, server.takeRequest().sequenceNumber)
+    }
+
+    // ── Helpers ─────────────────────────────────────────────────────
+
+    /** Answers 401 to an unauthenticated request, as the real API does. */
+    private fun apiKeyRequiringDispatcher() = object : Dispatcher() {
+        override fun dispatch(request: RecordedRequest): MockResponse =
+            if (request.getHeader("X-API-Key") == API_KEY) {
+                MockResponse().setResponseCode(200).setBody(VALID_RESPONSE)
+            } else {
+                MockResponse().setResponseCode(401).setBody(
+                    """{"statusCode":401,"message":"API key is required"}""",
+                )
+            }
     }
 
     // ── Test data ───────────────────────────────────────────────────
 
     companion object {
+
+        private const val API_KEY = "dyplink_test_key"
+
         private val VALID_RESPONSE = """
         {
             "category": {

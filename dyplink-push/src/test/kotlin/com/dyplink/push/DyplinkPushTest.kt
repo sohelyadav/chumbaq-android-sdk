@@ -133,6 +133,12 @@ class DyplinkPushTest {
         DyplinkPush.unregisterToken()
     }
 
+    /**
+     * [DyplinkPush] launches these on [kotlinx.coroutines.Dispatchers.IO],
+     * which a [kotlinx.coroutines.test.TestScope] does not own — so
+     * `advanceUntilIdle` returns without waiting for them and a bare verify
+     * races the IO thread. Waiting is what makes them deterministic.
+     */
     // ── onTokenRefresh ──────────────────────────────────────────────
 
     @Test
@@ -143,7 +149,7 @@ class DyplinkPushTest {
         DyplinkPush.onTokenRefresh("refreshed_token")
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { tokenManager.registerToken("refreshed_token") }
+        coVerify(timeout = VERIFY_TIMEOUT_MS, exactly = 1) { tokenManager.registerToken("refreshed_token") }
     }
 
     @Test
@@ -286,7 +292,7 @@ class DyplinkPushTest {
         DyplinkPush.reportDelivered(data)
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { eventReporter.reportDelivered(data) }
+        coVerify(timeout = VERIFY_TIMEOUT_MS, exactly = 1) { eventReporter.reportDelivered(data) }
     }
 
     @Test
@@ -300,6 +306,57 @@ class DyplinkPushTest {
         // eventReporter was never injected, so no call is made — just verify no crash.
     }
 
+    // ── reportImpression ────────────────────────────────────────────
+
+    @Test
+    fun `reportImpression delegates to eventReporter when initialized`() = testScope.runTest {
+        coEvery { eventReporter.reportImpression(any()) } returns Unit
+        DyplinkPush.injectForTesting(tokenManager, testScope, eventReporter)
+
+        DyplinkPush.reportImpression("camp_1")
+        advanceUntilIdle()
+
+        coVerify(timeout = VERIFY_TIMEOUT_MS, exactly = 1) { eventReporter.reportImpression("camp_1") }
+    }
+
+    @Test
+    fun `reportImpression is no-op when not initialized`() = testScope.runTest {
+        DyplinkPush.resetForTesting()
+
+        // Should not throw
+        DyplinkPush.reportImpression("camp_1")
+        advanceUntilIdle()
+    }
+
+    // ── reportDismissed ─────────────────────────────────────────────
+
+    @Test
+    fun `reportDismissed delegates to eventReporter when initialized`() = testScope.runTest {
+        coEvery { eventReporter.reportDismissed(any()) } returns Unit
+        DyplinkPush.injectForTesting(tokenManager, testScope, eventReporter)
+
+        DyplinkPush.reportDismissed("camp_1")
+        advanceUntilIdle()
+
+        coVerify(timeout = VERIFY_TIMEOUT_MS, exactly = 1) { eventReporter.reportDismissed("camp_1") }
+    }
+
+    /**
+     * The receiver holds a `goAsync()` result open until this fires. Never
+     * finishing it leaves the broadcast pending until the system times it
+     * out, so it has to run on the uninitialised path too.
+     */
+    @Test
+    fun `reportDismissed completes even when not initialized`() = testScope.runTest {
+        DyplinkPush.resetForTesting()
+
+        var completed = false
+        DyplinkPush.reportDismissed("camp_1") { completed = true }
+        advanceUntilIdle()
+
+        assertTrue(completed)
+    }
+
     // ── reportClick ─────────────────────────────────────────────────
 
     @Test
@@ -310,7 +367,7 @@ class DyplinkPushTest {
         DyplinkPush.reportClick("camp_1")
         advanceUntilIdle()
 
-        coVerify(exactly = 1) { eventReporter.reportClick("camp_1") }
+        coVerify(timeout = VERIFY_TIMEOUT_MS, exactly = 1) { eventReporter.reportClick("camp_1") }
     }
 
     @Test
@@ -322,5 +379,10 @@ class DyplinkPushTest {
         advanceUntilIdle()
 
         // eventReporter was never injected, so no call is made — just verify no crash.
+    }
+
+    private companion object {
+        /** Generous: it only ever elapses when something is actually broken. */
+        const val VERIFY_TIMEOUT_MS = 5_000L
     }
 }

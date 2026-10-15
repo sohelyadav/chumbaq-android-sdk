@@ -144,7 +144,7 @@ class PushCarouselReceiverTest {
     @Test
     fun `onReceive re-posts the notification at the new slide`() {
         mockkObject(PushNotificationHandler)
-        coEvery { PushNotificationHandler.post(any(), any(), any(), any()) } returns Unit
+        coEvery { PushNotificationHandler.post(any(), any(), any(), any()) } returns true
 
         val context = mockk<Context>(relaxed = true)
         receiver.onReceive(context, pressIntent(content(), notificationId = 42, currentIndex = 2))

@@ -17,10 +17,24 @@ import com.google.firebase.messaging.RemoteMessage
  *    [onDyplinkMessage]. If the host does not handle the message, a
  *    default notification is displayed via [PushNotificationHandler].
  *
- * Host apps that already have their own [FirebaseMessagingService]
- * subclass should **not** use this class. Instead, call
- * [DyplinkPush.onTokenRefresh] and [PushNotificationHandler.showNotification]
- * directly from their own service.
+ * **A host app with its own messaging logic should subclass this service**
+ * rather than write its own: override [onDyplinkMessage] to take the
+ * message over, and [onDyplinkTokenRefresh] for the token, then declare the
+ * subclass in the app's manifest. Both reporting paths keep working, and
+ * the subclass wins because the app's manifest entry is merged over the
+ * library's.
+ *
+ * An app that must keep a `FirebaseMessagingService` of its own instead can
+ * remove this one at merge time:
+ *
+ * ```xml
+ * <service
+ *     android:name="com.dyplink.push.DyplinkMessagingService"
+ *     tools:node="remove" />
+ * ```
+ *
+ * That gives up `delivered` reporting and the rich notification rendering,
+ * so the subclass above is the supported path.
  */
 open class DyplinkMessagingService : FirebaseMessagingService() {
 

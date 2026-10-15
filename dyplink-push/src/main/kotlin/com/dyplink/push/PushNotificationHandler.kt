@@ -77,7 +77,14 @@ internal object PushNotificationHandler {
         // FCM dispatches onMessageReceived on a background thread, so waiting
         // here for the image costs nothing the user can see; the download
         // itself still happens on Dispatchers.IO and gives up on its own.
-        runBlocking { post(context, content, notificationId, slideIndex = 0) }
+        val posted = runBlocking { post(context, content, notificationId, slideIndex = 0) }
+
+        // An impression is the notification reaching the shade — the first
+        // moment the user could see it — so it is reported here and not from
+        // `post`, which a carousel re-enters on every slide change.
+        if (posted) {
+            content.campaignId?.let { DyplinkPush.reportImpression(it) }
+        }
     }
 
     /**
@@ -86,13 +93,15 @@ internal object PushNotificationHandler {
      *
      * Re-posting with an id that is already showing replaces it in place,
      * which is how [PushCarouselReceiver] moves between slides.
+     *
+     * @return `true` when a notification reached the shade, rich or plain.
      */
     internal suspend fun post(
         context: Context,
         content: PushContent,
         notificationId: Int,
         slideIndex: Int,
-    ) {
+    ): Boolean {
         val notificationManager =
             context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
@@ -111,8 +120,9 @@ internal object PushNotificationHandler {
         val builder = baseBuilder(context, content, notificationId)
         decorate(context, builder, content, notificationId, slideIndex, image)
 
-        try {
+        return try {
             notificationManager.notify(notificationId, builder.build())
+            true
         } catch (e: Exception) {
             // Something about the rich content the builder could not swallow —
             // an unusable bitmap, a custom view the system refuses. The plain
@@ -123,8 +133,10 @@ internal object PushNotificationHandler {
                     notificationId,
                     baseBuilder(context, content, notificationId).build(),
                 )
+                true
             } catch (e: Exception) {
                 Log.e(TAG, "Notification failed to post", e)
+                false
             }
         }
     }
@@ -194,7 +206,29 @@ internal object PushNotificationHandler {
                 actionId = null,
             )
             if (tap != null) setContentIntent(tap)
+            applyDismissReporting(context, this, content, notificationId)
         }
+
+    /**
+     * Routes a dismissal of notification [notificationId] through
+     * [PushDismissReceiver], so a swipe is reported instead of being the one
+     * notification outcome the campaign report never hears about.
+     *
+     * A no-op for a non-campaign push: there is nothing to report it
+     * against. Applied here rather than in [decorate] so the plain
+     * fallback notification reports its dismissal too.
+     */
+    internal fun applyDismissReporting(
+        context: Context,
+        builder: NotificationCompat.Builder,
+        content: PushContent,
+        notificationId: Int,
+    ) {
+        val campaignId = content.campaignId ?: return
+        PushDismissReceiver
+            .deleteIntent(context, campaignId, notificationId)
+            ?.let { builder.setDeleteIntent(it) }
+    }
 
     /**
      * Layers the campaign's rich content onto [builder]: a countdown, a

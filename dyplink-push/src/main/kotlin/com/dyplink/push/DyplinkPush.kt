@@ -261,6 +261,41 @@ object DyplinkPush {
     }
 
     /**
+     * Called by [PushNotificationHandler] once a Dyplink campaign
+     * notification has been posted to the shade.
+     *
+     * If the module is not yet initialised the report is silently dropped —
+     * there is no config to send it with.
+     */
+    internal fun reportImpression(campaignId: String) {
+        if (!_isInitialized) return
+        scope.launch(Dispatchers.IO) {
+            eventReporter.reportImpression(campaignId)
+        }
+    }
+
+    /**
+     * Called by [PushDismissReceiver] when the user swipes a Dyplink
+     * campaign notification away.
+     *
+     * [onComplete] always runs, on every path including the uninitialised
+     * one, for the same reason it does in [reportClick].
+     */
+    internal fun reportDismissed(campaignId: String, onComplete: () -> Unit = {}) {
+        if (!_isInitialized) {
+            onComplete()
+            return
+        }
+        scope.launch(Dispatchers.IO) {
+            try {
+                eventReporter.reportDismissed(campaignId)
+            } finally {
+                onComplete()
+            }
+        }
+    }
+
+    /**
      * Called by [PushClickReceiver] when a Dyplink campaign notification
      * is tapped.
      *
