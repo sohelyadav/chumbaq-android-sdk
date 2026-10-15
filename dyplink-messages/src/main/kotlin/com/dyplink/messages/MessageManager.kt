@@ -78,7 +78,8 @@ internal class MessageManager(
                     messageListener?.onCustomEvent(message, eventName)
                 }
             }
-            "dismiss" -> { /* dialog handles its own dismissal */ }
+            // Nothing to do beyond closing, which every tapped button does.
+            "dismiss" -> {}
         }
     }
 }
