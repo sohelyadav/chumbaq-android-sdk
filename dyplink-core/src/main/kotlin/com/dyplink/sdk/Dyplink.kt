@@ -101,6 +101,7 @@ object Dyplink {
 
         this.config = config
         Logger.logLevel = config.logLevel
+        DyplinkDiagnostics.enabled = config.diagnosticsEnabled
 
         // Populate bridge so optional modules (push, banners) can read config
         DyplinkConfigBridge.baseUrl = config.baseUrl

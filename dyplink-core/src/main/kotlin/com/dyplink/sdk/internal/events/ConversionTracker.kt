@@ -1,5 +1,6 @@
 package com.dyplink.sdk.internal.events
 
+import com.dyplink.sdk.DyplinkDiagnostics
 import com.dyplink.sdk.internal.storage.DyplinkPreferences
 import com.dyplink.sdk.internal.storage.EventQueueManager
 import com.dyplink.sdk.internal.util.Logger
@@ -24,24 +25,41 @@ internal class ConversionTracker(
     /**
      * Enqueues a conversion event. The [TrackConversionParams.shortCode]
      * and [TrackConversionParams.linkId] fall back to the values stored
-     * in [DyplinkPreferences] if not explicitly provided.
+     * in [DyplinkPreferences] if not explicitly provided. With neither
+     * available the conversion is dropped rather than queued — the server
+     * requires one of the two, so it could never be attributed.
      *
      * Fire-and-forget -- errors are caught and logged.
      */
     fun trackConversion(params: TrackConversionParams) {
         scope.launch {
             try {
+                val shortCode = params.shortCode ?: preferences.attributedShortCode
+                val linkId = params.linkId ?: preferences.attributedLinkId
+
+                // `CreateConversionDto` rejects a body with neither — the
+                // conversion has nothing to attribute to. Queuing it anyway
+                // bought a 400, which the queue treats as terminal and
+                // deletes, so the event was lost either way; dropping it here
+                // at least says so.
+                if (shortCode == null && linkId == null) {
+                    DyplinkDiagnostics.warn(
+                        "ConversionTracker",
+                        "dropped ${params.eventType}: no attributed shortCode or linkId",
+                    )
+                    return@launch
+                }
+
                 val body = JSONObject().apply {
                     put("projectId", projectId)
                     put("eventType", params.eventType)
-                    put(
-                        "shortCode",
-                        params.shortCode ?: preferences.attributedShortCode,
-                    )
-                    put(
-                        "linkId",
-                        params.linkId ?: preferences.attributedLinkId,
-                    )
+                    // Written only when present. `JSONObject.put` already
+                    // drops a null rather than emitting JSON `null`, so this
+                    // changes no bytes — it says so at the call site, and
+                    // keeps a future `JSONObject.NULL` out, which the DTO's
+                    // `@IsOptional` would validate instead of skipping.
+                    shortCode?.let { put("shortCode", it) }
+                    linkId?.let { put("linkId", it) }
                     params.externalUserId?.let { put("externalUserId", it) }
                     if (params.metadata != null) {
                         val metaJson = JSONObject()
