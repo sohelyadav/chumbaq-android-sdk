@@ -72,6 +72,54 @@ class PushNotificationHandlerTest {
         unmockkAll()
     }
 
+    // ── dismissal reporting ─────────────────────────────────────────
+
+    /**
+     * A swipe was the one notification outcome nothing reported, so the
+     * `dismissed` column was permanently zero.
+     */
+    @Test
+    fun `a campaign notification reports its dismissal`() {
+        PushNotificationHandler.applyDismissReporting(
+            context = context,
+            builder = builder,
+            content = content(campaignId = "camp_1"),
+            notificationId = 1,
+        )
+
+        verify(exactly = 1) { builder.setDeleteIntent(any()) }
+    }
+
+    @Test
+    fun `a non-campaign notification has no dismissal to report`() {
+        PushNotificationHandler.applyDismissReporting(
+            context = context,
+            builder = builder,
+            content = content(),
+            notificationId = 1,
+        )
+
+        verify(exactly = 0) { builder.setDeleteIntent(any()) }
+    }
+
+    /**
+     * Two notifications on screen at once must not share one delete intent:
+     * PendingIntents match on everything but their extras, so the second
+     * would report the first's campaign.
+     */
+    @Test
+    fun `each notification gets its own dismissal identity`() {
+        assertNotEquals(
+            PushNotificationHandler.uniqueAction(1, "dismiss"),
+            PushNotificationHandler.uniqueAction(2, "dismiss"),
+        )
+        // …and a dismissal is distinct from a tap on the same notification.
+        assertNotEquals(
+            PushNotificationHandler.uniqueAction(1, "dismiss"),
+            PushNotificationHandler.uniqueAction(1, "tap"),
+        )
+    }
+
     // ── plain payloads ──────────────────────────────────────────────
 
     @Test
