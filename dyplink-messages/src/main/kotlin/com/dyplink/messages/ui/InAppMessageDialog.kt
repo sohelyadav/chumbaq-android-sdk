@@ -12,6 +12,11 @@ import android.view.Gravity
 import android.view.View
 import android.view.ViewGroup
 import android.view.Window
+import android.view.animation.AlphaAnimation
+import android.view.animation.Animation
+import android.view.animation.AnimationSet
+import android.view.animation.ScaleAnimation
+import android.view.animation.TranslateAnimation
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.ImageView
@@ -47,6 +52,15 @@ internal class InAppMessageDialog(
     private val message: InAppMessage,
     private val onEvent: (eventType: String, buttonId: String?) -> Unit,
     private val onButtonAction: (button: MessageButton) -> Unit,
+    /**
+     * Runs when the message leaves the screen, whatever took it away.
+     *
+     * Distinct from [onEvent]: exactly one close *reason* is reported, and
+     * a CTA tap reports through [onButtonAction] instead — so no single
+     * event tells a caller the screen is free again. [MessageManager] needs
+     * that to show the next message.
+     */
+    private val onClosed: () -> Unit = {},
 ) {
     private val handler = Handler(Looper.getMainLooper())
     private var autoDismissRunnable: Runnable? = null
@@ -90,7 +104,7 @@ internal class InAppMessageDialog(
             dialog.window?.setLayout(MATCH_PARENT, MATCH_PARENT)
         }
 
-        present(dialog, autoDismissAfter = message.autoDismissSeconds)
+        present(dialog, contentView, autoDismissAfter = message.autoDismissSeconds)
     }
 
     // ── Bottom Sheet ───────────────────────────────────────────────
@@ -101,7 +115,7 @@ internal class InAppMessageDialog(
         dialog.setContentView(contentView)
         dialog.setCancelable(message.dismissOnTapOutside)
 
-        present(dialog, autoDismissAfter = message.autoDismissSeconds)
+        present(dialog, contentView, autoDismissAfter = message.autoDismissSeconds)
     }
 
     // ── Banner ─────────────────────────────────────────────────────
@@ -123,7 +137,11 @@ internal class InAppMessageDialog(
 
         // A banner has no buttons to speak of and sits over the app, so it
         // leaves on its own unless the campaign says otherwise.
-        present(dialog, autoDismissAfter = message.autoDismissSeconds ?: BANNER_AUTO_DISMISS_SECONDS)
+        present(
+            dialog,
+            contentView,
+            autoDismissAfter = message.autoDismissSeconds ?: BANNER_AUTO_DISMISS_SECONDS,
+        )
     }
 
     // ── Content View ───────────────────────────────────────────────
@@ -241,20 +259,28 @@ internal class InAppMessageDialog(
     // ── Lifecycle ──────────────────────────────────────────────────
 
     /**
-     * Shows [dialog], reports its impression and dismissal, and arms
-     * auto-dismiss where the message asks for one.
+     * Shows [dialog], reports its impression and dismissal, plays the
+     * theme's entrance on [contentView], and arms auto-dismiss where the
+     * message asks for one.
      *
      * The dismissal is only reported when nothing else has already explained
      * the close — see [closeReason].
      */
-    private fun present(dialog: Dialog, autoDismissAfter: Int?) {
+    private fun present(dialog: Dialog, contentView: View, autoDismissAfter: Int?) {
         activeDialog = dialog
 
-        dialog.setOnShowListener { onEvent("impression", null) }
+        dialog.setOnShowListener {
+            onEvent("impression", null)
+            // Once the window exists. The message's own card animates, not
+            // the decor view: the decor carries the dim scrim behind it, and
+            // fading that in with the card is a different effect entirely.
+            animateIn(contentView)
+        }
         dialog.setOnDismissListener {
             cancelAutoDismiss()
             activeDialog = null
             if (closeReason == null) onEvent("dismiss", null)
+            onClosed()
         }
 
         dialog.show()
@@ -286,6 +312,53 @@ internal class InAppMessageDialog(
         close("cta_click")
     }
 
+    // ── Entrance ───────────────────────────────────────────────────
+
+    /**
+     * Plays the entrance the theme's `animation` asks for on [view].
+     *
+     * `animation` was parsed off the theme and then dropped, so the
+     * dashboard's animation setting did nothing whichever value it held.
+     *
+     * A view [Animation] rather than a window animation style, because a
+     * window style has to come from a resource and the three containers
+     * here each build their window differently — the view is the one thing
+     * they share. Relative offsets for the same reason the duration is
+     * fixed: the view has not been measured yet when this runs, so there is
+     * no height to translate by in pixels.
+     */
+    internal fun animateIn(view: View) {
+        animationFor(Entrance.of(message.theme?.animation))
+            ?.let { view.startAnimation(it) }
+    }
+
+    /**
+     * The entrances the dashboard offers, resolved from the raw string so
+     * the mapping can be tested without a window.
+     *
+     * An unrecognised value is [NONE] rather than a default animation: a
+     * campaign saved against a newer dashboard should arrive without one,
+     * not with the wrong one.
+     */
+    internal enum class Entrance {
+        NONE,
+        FADE,
+        SLIDE_UP,
+        SLIDE_DOWN,
+        SCALE,
+        ;
+
+        internal companion object {
+            internal fun of(animation: String?): Entrance = when (animation) {
+                "fade" -> FADE
+                "slide_up" -> SLIDE_UP
+                "slide_down" -> SLIDE_DOWN
+                "scale" -> SCALE
+                else -> NONE
+            }
+        }
+    }
+
     // ── Helpers ────────────────────────────────────────────────────
 
     private fun cancelAutoDismiss() {
@@ -302,9 +375,41 @@ internal class InAppMessageDialog(
     private fun dp(value: Int): Int =
         (value * context.resources.displayMetrics.density).toInt()
 
-    private companion object {
+    internal companion object {
         const val BANNER_AUTO_DISMISS_SECONDS = 4
         const val DEFAULT_CORNER_RADIUS_DP = 12
+
+        /** Short enough not to delay a message the user triggered. */
+        const val ENTRANCE_MS = 220L
+
+        /** Where `scale` starts: a nudge, not a zoom. */
+        const val SCALE_FROM = 0.9f
+
+        /** The [Animation] an [Entrance] plays, or `null` for [Entrance.NONE]. */
+        internal fun animationFor(entrance: Entrance): Animation? = when (entrance) {
+            Entrance.NONE -> null
+            Entrance.FADE -> AlphaAnimation(0f, 1f)
+            Entrance.SLIDE_UP -> slide(fromYDelta = 1f)
+            Entrance.SLIDE_DOWN -> slide(fromYDelta = -1f)
+            Entrance.SCALE -> AnimationSet(true).apply {
+                addAnimation(AlphaAnimation(0f, 1f))
+                addAnimation(
+                    ScaleAnimation(
+                        SCALE_FROM, 1f, SCALE_FROM, 1f,
+                        Animation.RELATIVE_TO_SELF, 0.5f,
+                        Animation.RELATIVE_TO_SELF, 0.5f,
+                    ),
+                )
+            }
+        }?.apply { duration = ENTRANCE_MS }
+
+        /** Travels [fromYDelta] of its own height to rest. */
+        private fun slide(fromYDelta: Float): Animation = TranslateAnimation(
+            Animation.RELATIVE_TO_SELF, 0f,
+            Animation.RELATIVE_TO_SELF, 0f,
+            Animation.RELATIVE_TO_SELF, fromYDelta,
+            Animation.RELATIVE_TO_SELF, 0f,
+        )
 
         /** Black at 40%, dark enough for white copy over a bright photo. */
         const val BACKGROUND_SCRIM = 0x66000000.toInt()
