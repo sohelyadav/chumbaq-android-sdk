@@ -1,5 +1,6 @@
 package com.dyplink.messages.internal
 
+import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -11,9 +12,11 @@ internal class MessageEventTracker(
     private val projectId: String,
     private val deviceFingerprint: String,
     private val distinctId: () -> String?,
+    /** Overridable so a test can assert on reports without waiting for IO. */
+    private val dispatcher: CoroutineDispatcher = Dispatchers.IO,
 ) {
     fun track(messageId: String, eventType: String, buttonId: String? = null) {
-        scope.launch(Dispatchers.IO) {
+        scope.launch(dispatcher) {
             try {
                 apiClient.recordEvent(
                     messageId = messageId,

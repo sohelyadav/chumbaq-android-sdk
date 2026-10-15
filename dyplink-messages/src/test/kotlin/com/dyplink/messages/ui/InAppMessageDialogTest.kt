@@ -11,11 +11,16 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.view.View
 import android.view.ViewGroup
+import android.view.animation.AlphaAnimation
+import android.view.animation.AnimationSet
+import android.view.animation.TranslateAnimation
 import androidx.appcompat.view.ContextThemeWrapper
 import com.dyplink.messages.model.InAppMessage
 import com.dyplink.messages.model.MessageButton
 import com.dyplink.messages.model.MessageTheme
+import com.dyplink.messages.ui.InAppMessageDialog.Entrance
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -76,6 +81,14 @@ class InAppMessageDialogTest {
         triggerDelay = 0,
     )
 
+    /** The dialog, unshown — for the parts testable without a window. */
+    private fun dialog(message: InAppMessage) = InAppMessageDialog(
+        context = context,
+        message = message,
+        onEvent = { type, buttonId -> events.add(type to buttonId) },
+        onButtonAction = { tapped.add(it) },
+    )
+
     private fun show(message: InAppMessage) = InAppMessageDialog(
         context = context,
         message = message,
@@ -89,6 +102,12 @@ class InAppMessageDialogTest {
     }
 
     private fun idle() = shadowOf(Looper.getMainLooper()).idle()
+
+    private fun themeWith(animation: String?) = MessageTheme(
+        backgroundColor = null, textColor = null, titleColor = null,
+        buttonPrimaryColor = null, buttonSecondaryColor = null,
+        overlayColor = null, borderRadius = null, animation = animation,
+    )
 
     private fun button(id: String, action: String, style: String = "primary") =
         MessageButton(id = id, text = id, action = action, actionUrl = null, actionEvent = null, style = style)
@@ -254,6 +273,105 @@ class InAppMessageDialogTest {
         ), buttons = listOf(button("ok", "dismiss", style = "secondary"))))
 
         assertTrue(shownDialog()!!.isShowing)
+    }
+
+    // ── Entrance animation ─────────────────────────────────────────
+
+    /**
+     * `theme.animation` was parsed off the response and then never read, so
+     * whichever of the five values the dashboard held, the message appeared
+     * the same way.
+     *
+     * Asserted against a bare view rather than a shown dialog: an entrance
+     * is cleared off the view the moment it completes, and under a paused
+     * looper it has completed by the time `show()` returns control.
+     */
+    @Test
+    fun `a fade theme animates the view`() {
+        val view = View(context)
+
+        dialog(message(theme = themeWith("fade"))).animateIn(view)
+
+        assertTrue(view.animation is AlphaAnimation)
+        assertEquals(InAppMessageDialog.ENTRANCE_MS, view.animation.duration)
+    }
+
+    @Test
+    fun `a slide theme translates the view`() {
+        val view = View(context)
+
+        dialog(message(theme = themeWith("slide_up"))).animateIn(view)
+
+        assertTrue(view.animation is TranslateAnimation)
+    }
+
+    @Test
+    fun `a scale theme scales and fades together`() {
+        val view = View(context)
+
+        dialog(message(theme = themeWith("scale"))).animateIn(view)
+
+        assertTrue(view.animation is AnimationSet)
+    }
+
+    @Test
+    fun `a none theme animates nothing`() {
+        val view = View(context)
+
+        dialog(message(theme = themeWith("none"))).animateIn(view)
+
+        assertNull(view.animation)
+    }
+
+    @Test
+    fun `a theme with no animation animates nothing`() {
+        val view = View(context)
+
+        dialog(message(theme = themeWith(null))).animateIn(view)
+
+        assertNull(view.animation)
+    }
+
+    /**
+     * A campaign saved against a newer dashboard should arrive without an
+     * animation rather than with the wrong one.
+     */
+    @Test
+    fun `an unrecognised animation animates nothing`() {
+        val view = View(context)
+
+        dialog(message(theme = themeWith("barrel_roll"))).animateIn(view)
+
+        assertNull(view.animation)
+    }
+
+    @Test
+    fun `every animation the dashboard offers maps to an entrance`() {
+        assertEquals(Entrance.FADE, Entrance.of("fade"))
+        assertEquals(Entrance.SLIDE_UP, Entrance.of("slide_up"))
+        assertEquals(Entrance.SLIDE_DOWN, Entrance.of("slide_down"))
+        assertEquals(Entrance.SCALE, Entrance.of("scale"))
+        assertEquals(Entrance.NONE, Entrance.of("none"))
+        assertEquals(Entrance.NONE, Entrance.of(null))
+        assertEquals(Entrance.NONE, Entrance.of("something new"))
+    }
+
+    /** The up and the down slide must not resolve to the same entrance. */
+    @Test
+    fun `slide up and slide down are different entrances`() {
+        assertNotEquals(Entrance.of("slide_up"), Entrance.of("slide_down"))
+    }
+
+    /** Whatever the entrance, it must survive a real window. */
+    @Test
+    fun `a message shows with every animation the dashboard offers`() {
+        for (animation in listOf("fade", "slide_up", "slide_down", "scale", "none")) {
+            show(message(theme = themeWith(animation)))
+
+            assertTrue("$animation should still show", shownDialog()!!.isShowing)
+            shownDialog()!!.dismiss()
+            idle()
+        }
     }
 
     // ── Auto-dismiss ───────────────────────────────────────────────

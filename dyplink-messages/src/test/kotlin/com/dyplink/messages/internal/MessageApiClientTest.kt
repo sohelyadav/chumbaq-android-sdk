@@ -1,5 +1,9 @@
 package com.dyplink.messages.internal
 
+import com.dyplink.sdk.DyplinkConfigBridge
+import kotlinx.coroutines.test.runTest
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
@@ -98,5 +102,36 @@ class MessageApiClientTest {
         assertTrue(message.dismissOnTapOutside)
         assertNull(message.autoDismissSeconds)
         assertEquals(0, message.triggerDelay)
+    }
+
+    // ── Connection hygiene ──────────────────────────────────────────
+
+    /**
+     * A non-2xx check used to throw before anything read or closed the body,
+     * so OkHttp could not return the connection to the pool and logged a
+     * leak.
+     *
+     * A reused connection is the observable proof: `sequenceNumber` counts
+     * requests on the *same* socket, so a second request only reports 1 if
+     * the first response was closed.
+     */
+    @Test
+    fun `a failed check leaves its connection reusable`() = runTest {
+        val server = MockWebServer()
+        server.start()
+        DyplinkConfigBridge.baseUrl = server.url("").toString().trimEnd('/')
+        try {
+            server.enqueue(MockResponse().setResponseCode(500).setBody("Internal Server Error"))
+            server.enqueue(MockResponse().setResponseCode(200).setBody("""{"data":{"messages":[]}}"""))
+
+            runCatching { client.checkMessages("p", "fp", null, MessageCheckContext()) }
+            client.checkMessages("p", "fp", null, MessageCheckContext())
+
+            server.takeRequest()
+            assertEquals(1, server.takeRequest().sequenceNumber)
+        } finally {
+            server.shutdown()
+            DyplinkConfigBridge.baseUrl = ""
+        }
     }
 }

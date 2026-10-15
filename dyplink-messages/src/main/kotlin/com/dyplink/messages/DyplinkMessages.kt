@@ -1,6 +1,7 @@
 package com.dyplink.messages
 
 import android.content.Context
+import com.dyplink.messages.internal.ActivityTracker
 import com.dyplink.messages.internal.MessageApiClient
 import com.dyplink.messages.internal.MessageCheckContext
 import com.dyplink.sdk.Dyplink
@@ -85,9 +86,16 @@ object DyplinkMessages {
 
     private fun checkAndShow(context: Context, checkContext: MessageCheckContext) {
         check(Dyplink.isInitialized) { "Dyplink.init() must be called before using DyplinkMessages" }
+
+        // The only thing [context] is for. A message is displayed on
+        // whichever Activity is in the foreground when its trigger delay
+        // elapses, not on the one that happened to make the check — see
+        // [ActivityTracker].
+        ActivityTracker.register(context)
+
         scope.launch(Dispatchers.IO) {
             try {
-                manager.checkAndShow(context, checkContext)
+                manager.checkAndShow(checkContext)
             } catch (_: Exception) {
                 // Never crash the host app
             }
