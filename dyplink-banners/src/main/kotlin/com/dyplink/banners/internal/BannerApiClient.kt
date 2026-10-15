@@ -3,6 +3,7 @@ package com.dyplink.banners.internal
 import com.dyplink.banners.model.Banner
 import com.dyplink.banners.model.BannerCategory
 import com.dyplink.sdk.DyplinkConfigBridge
+import com.dyplink.sdk.unwrapDyplinkEnvelope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.OkHttpClient
@@ -30,8 +31,9 @@ internal class BannerApiClient {
         }
 
         val json = JSONObject(response.body?.string() ?: "{}")
-        // API wraps response in "data" sometimes
-        val root = if (json.has("data")) json.getJSONObject("data") else json
+        // Every API response is wrapped in `{ "data": … }`; falling back to
+        // the root keeps an unwrapped body working.
+        val root = json.unwrapDyplinkEnvelope()
         parseBannerCategory(root, categoryId)
     }
 

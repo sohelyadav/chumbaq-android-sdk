@@ -5,6 +5,7 @@ import com.dyplink.sdk.internal.util.Logger
 import com.dyplink.sdk.model.DyplinkError
 import com.dyplink.sdk.model.IdentifyParams
 import com.dyplink.sdk.model.IdentifyResult
+import com.dyplink.sdk.unwrapDyplinkEnvelope
 import org.json.JSONObject
 
 /**
@@ -48,7 +49,7 @@ internal class IdentityManager(
             )
         }
 
-        val json = JSONObject(response.body!!.string())
+        val json = JSONObject(response.body!!.string()).unwrapDyplinkEnvelope()
 
         // Trigger a merge when the identity has transitioned.
         val newDistinctId = fingerprintProvider.distinctId

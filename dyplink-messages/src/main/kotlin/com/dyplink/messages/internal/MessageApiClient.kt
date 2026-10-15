@@ -4,6 +4,7 @@ import com.dyplink.messages.model.InAppMessage
 import com.dyplink.messages.model.MessageButton
 import com.dyplink.messages.model.MessageTheme
 import com.dyplink.sdk.DyplinkConfigBridge
+import com.dyplink.sdk.unwrapDyplinkEnvelope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -11,6 +12,7 @@ import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONArray
+import org.json.JSONException
 import org.json.JSONObject
 import java.util.concurrent.TimeUnit
 
@@ -60,8 +62,7 @@ internal class MessageApiClient {
             throw RuntimeException("checkMessages failed: ${response.code}")
         }
 
-        val json = JSONObject(response.body?.string() ?: "{}")
-        parseMessages(json.optJSONArray("messages") ?: JSONArray())
+        parseResponse(response.body?.string())
     }
 
     /**
@@ -96,10 +97,33 @@ internal class MessageApiClient {
 
     // ── Parsing ────────────────────────────────────────────────────
 
+    /**
+     * Reads the eligible messages out of a `/api/messages/check` body.
+     *
+     * The API wraps every response in `{ "data": … }`. Reading `messages`
+     * off the root finds nothing and looks exactly like "no messages are
+     * eligible" — so for as long as this read the root directly, nothing
+     * ever displayed and nothing ever complained.
+     *
+     * A body that cannot be read yields no messages rather than an
+     * exception: there is nothing the host app could do about a malformed
+     * check, and a throw here would travel up through a trigger callback.
+     */
+    internal fun parseResponse(body: String?): List<InAppMessage> {
+        val json = try {
+            JSONObject(body ?: "{}").unwrapDyplinkEnvelope()
+        } catch (_: JSONException) {
+            return emptyList()
+        }
+        return parseMessages(json.optJSONArray("messages") ?: JSONArray())
+    }
+
     private fun parseMessages(array: JSONArray): List<InAppMessage> {
         val result = mutableListOf<InAppMessage>()
         for (i in 0 until array.length()) {
-            result.add(parseMessage(array.getJSONObject(i)))
+            val message = array.optJSONObject(i) ?: continue
+            // One unreadable message costs that message, not the batch.
+            result.add(runCatching { parseMessage(message) }.getOrNull() ?: continue)
         }
         return result
     }
