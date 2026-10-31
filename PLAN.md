@@ -2,7 +2,7 @@ I do not have access to the Write tool in this read-only session, so I will pres
 
 ---
 
-# Dyplink Android SDK -- Comprehensive Architecture Plan
+# Chumbaq Android SDK -- Comprehensive Architecture Plan
 
 ## 1. Complete Module Structure with All Files
 
@@ -11,7 +11,7 @@ The SDK follows a multi-module Gradle project with three library modules (core, 
 ### Root: `/Users/sohelyadav/Development/dyplink/dyplink-android-sdk/`
 
 ```
-dyplink-android-sdk/
+chumbaq-android-sdk/
 ├── build.gradle.kts                          # Root build file (Kotlin DSL)
 ├── settings.gradle.kts                       # Module declarations
 ├── gradle.properties                         # SDK version, group, android config
@@ -23,17 +23,17 @@ dyplink-android-sdk/
 │   ├── gradle-wrapper.jar
 │   └── gradle-wrapper.properties
 │
-├── dyplink-core/
+├── chumbaq-core/
 │   ├── build.gradle.kts
 │   ├── consumer-rules.pro                    # ProGuard rules shipped with AAR
 │   ├── proguard-rules.pro                    # Library proguard rules
 │   └── src/
 │       ├── main/
 │       │   ├── AndroidManifest.xml
-│       │   └── kotlin/com/dyplink/sdk/
-│       │       ├── Dyplink.kt                           # Singleton entry point
-│       │       ├── DyplinkConfig.kt                     # Builder-pattern configuration
-│       │       ├── DyplinkInitializer.kt                # androidx.startup Initializer
+│       │   └── kotlin/com/chumbaq/sdk/
+│       │       ├── Chumbaq.kt                           # Singleton entry point
+│       │       ├── ChumbaqConfig.kt                     # Builder-pattern configuration
+│       │       ├── ChumbaqInitializer.kt                # androidx.startup Initializer
 │       │       │
 │       │       ├── model/                               # Public data classes
 │       │       │   ├── DeepLinkResult.kt                # Parsed deep link data
@@ -42,15 +42,15 @@ dyplink-android-sdk/
 │       │       │   ├── IdentifyResult.kt                # Identity API response
 │       │       │   ├── TrackConversionParams.kt         # Conversion tracking params
 │       │       │   ├── RevenueParams.kt                 # Revenue tracking params
-│       │       │   └── DyplinkError.kt                  # Error sealed class
+│       │       │   └── ChumbaqError.kt                  # Error sealed class
 │       │       │
 │       │       ├── deeplink/                            # Public deep link handling
 │       │       │   ├── DeepLinkHandler.kt               # Activity extension + intent parser
-│       │       │   └── DyplinkDeepLinkActivity.kt       # Trampoline activity for URI schemes
+│       │       │   └── ChumbaqDeepLinkActivity.kt       # Trampoline activity for URI schemes
 │       │       │
 │       │       └── internal/                            # Internal (not public API)
 │       │           ├── network/
-│       │           │   ├── DyplinkApiService.kt         # Retrofit-style API interface (OkHttp)
+│       │           │   ├── ChumbaqApiService.kt         # Retrofit-style API interface (OkHttp)
 │       │           │   ├── ApiClient.kt                 # OkHttp singleton, base URL, interceptors
 │       │           │   ├── ApiKeyInterceptor.kt         # Adds X-API-Key header
 │       │           │   ├── RetryInterceptor.kt          # Exponential backoff retry
@@ -71,8 +71,8 @@ dyplink-android-sdk/
 │       │           │   └── ConversionTracker.kt         # Conversion event tracking
 │       │           │
 │       │           ├── storage/
-│       │           │   ├── DyplinkPreferences.kt        # SharedPreferences wrapper
-│       │           │   ├── DyplinkDatabase.kt           # Room database definition
+│       │           │   ├── ChumbaqPreferences.kt        # SharedPreferences wrapper
+│       │           │   ├── ChumbaqDatabase.kt           # Room database definition
 │       │           │   ├── EventQueueDao.kt             # Room DAO for event queue
 │       │           │   ├── EventQueueEntity.kt          # Room entity for queued events
 │       │           │   └── EventQueueManager.kt         # Queue insert, batch flush, purge
@@ -86,8 +86,8 @@ dyplink-android-sdk/
 │       │               ├── ConnectivityMonitor.kt       # Network state observer
 │       │               └── JsonUtils.kt                 # JSONObject <-> Map helpers
 │       │
-│       ├── test/kotlin/com/dyplink/sdk/                 # Unit tests
-│       │   ├── DyplinkTest.kt
+│       ├── test/kotlin/com/chumbaq/sdk/                 # Unit tests
+│       │   ├── ChumbaqTest.kt
 │       │   ├── internal/
 │       │   │   ├── network/ApiClientTest.kt
 │       │   │   ├── network/RetryInterceptorTest.kt
@@ -100,31 +100,31 @@ dyplink-android-sdk/
 │       │   │   ├── storage/EventQueueManagerTest.kt
 │       │   │   └── lifecycle/SessionTrackerTest.kt
 │       │   └── model/
-│       │       └── DyplinkConfigTest.kt
+│       │       └── ChumbaqConfigTest.kt
 │       │
-│       └── androidTest/kotlin/com/dyplink/sdk/          # Instrumented tests
-│           ├── storage/DyplinkDatabaseTest.kt
+│       └── androidTest/kotlin/com/chumbaq/sdk/          # Instrumented tests
+│           ├── storage/ChumbaqDatabaseTest.kt
 │           ├── storage/EventQueueDaoTest.kt
 │           └── deeplink/DeepLinkIntegrationTest.kt
 │
-├── dyplink-push/
+├── chumbaq-push/
 │   ├── build.gradle.kts
 │   ├── consumer-rules.pro
 │   └── src/main/
 │       ├── AndroidManifest.xml
-│       └── kotlin/com/dyplink/push/
-│           ├── DyplinkPush.kt                           # Public API entry point
-│           ├── DyplinkMessagingService.kt               # FirebaseMessagingService subclass
+│       └── kotlin/com/chumbaq/push/
+│           ├── ChumbaqPush.kt                           # Public API entry point
+│           ├── ChumbaqMessagingService.kt               # FirebaseMessagingService subclass
 │           ├── PushTokenManager.kt                      # Register/unregister token
 │           └── PushNotificationHandler.kt               # Notification display + deep link routing
 │
-├── dyplink-banners/
+├── chumbaq-banners/
 │   ├── build.gradle.kts
 │   ├── consumer-rules.pro
 │   └── src/main/
 │       ├── AndroidManifest.xml
-│       ├── kotlin/com/dyplink/banners/
-│       │   ├── DyplinkBanners.kt                       # Public API entry point
+│       ├── kotlin/com/chumbaq/banners/
+│       │   ├── ChumbaqBanners.kt                       # Public API entry point
 │       │   ├── BannerManager.kt                        # Load banners from API, caching
 │       │   ├── model/
 │       │   │   ├── BannerCategory.kt                   # Category data class
@@ -140,8 +140,8 @@ dyplink-android-sdk/
 │       │       └── BannerImageLoader.kt                # Coil/Glide image loading wrapper
 │       └── res/
 │           ├── layout/
-│           │   ├── dyplink_banner_carousel.xml
-│           │   └── dyplink_banner_item.xml
+│           │   ├── chumbaq_banner_carousel.xml
+│           │   └── chumbaq_banner_item.xml
 │           └── values/
 │               ├── attrs.xml                            # Custom view attributes
 │               └── dimens.xml
@@ -150,8 +150,8 @@ dyplink-android-sdk/
     ├── build.gradle.kts
     └── src/main/
         ├── AndroidManifest.xml                          # Deep link intent filters
-        ├── kotlin/com/dyplink/sample/
-        │   ├── SampleApplication.kt                    # Dyplink.init() call
+        ├── kotlin/com/chumbaq/sample/
+        │   ├── SampleApplication.kt                    # Chumbaq.init() call
         │   ├── MainActivity.kt                         # Deep link handling demo
         │   ├── ProductActivity.kt                      # Deferred deep link target
         │   └── BannerDemoActivity.kt                   # Banner carousel demo
@@ -163,17 +163,17 @@ dyplink-android-sdk/
 
 ## 2. Public API Surface for Each Module
 
-### 2.1 dyplink-core: `Dyplink` (Singleton Entry Point)
+### 2.1 chumbaq-core: `Chumbaq` (Singleton Entry Point)
 
 ```kotlin
-// com.dyplink.sdk.Dyplink
-object Dyplink {
+// com.chumbaq.sdk.Chumbaq
+object Chumbaq {
 
     /**
      * Initialize the SDK. Must be called once, typically in Application.onCreate().
      * Thread-safe. Subsequent calls are no-ops.
      */
-    fun init(context: Context, config: DyplinkConfig)
+    fun init(context: Context, config: ChumbaqConfig)
 
     /** Whether the SDK has been initialized. */
     val isInitialized: Boolean
@@ -187,12 +187,12 @@ object Dyplink {
     /**
      * Identify the current user. Transitions from anonymous to identified.
      * Automatically merges anonymous history with identified user.
-     * This is a critical operation: throws DyplinkError on failure.
+     * This is a critical operation: throws ChumbaqError on failure.
      */
     suspend fun identify(params: IdentifyParams): IdentifyResult
 
     /** Java-friendly callback variant. */
-    fun identify(params: IdentifyParams, callback: DyplinkCallback<IdentifyResult>)
+    fun identify(params: IdentifyParams, callback: ChumbaqCallback<IdentifyResult>)
 
     /**
      * Track a custom event. Fire-and-forget: queued offline, sent when connected.
@@ -216,12 +216,12 @@ object Dyplink {
     suspend fun matchDeferredDeepLink(): DeferredMatchResult
 
     /** Java-friendly callback variant. */
-    fun matchDeferredDeepLink(callback: DyplinkCallback<DeferredMatchResult>)
+    fun matchDeferredDeepLink(callback: ChumbaqCallback<DeferredMatchResult>)
 
     /**
      * Handle an incoming deep link intent.
      * Call from Activity.onCreate() and Activity.onNewIntent().
-     * Returns parsed deep link data or null if intent doesn't contain a Dyplink link.
+     * Returns parsed deep link data or null if intent doesn't contain a Chumbaq link.
      */
     fun handleDeepLink(intent: Intent): DeepLinkResult?
 
@@ -242,15 +242,15 @@ object Dyplink {
     suspend fun flush()
 
     /** Java-friendly callback variant. */
-    fun flush(callback: DyplinkCallback<Unit>?)
+    fun flush(callback: ChumbaqCallback<Unit>?)
 }
 ```
 
-### 2.2 dyplink-core: `DyplinkConfig` (Builder Pattern)
+### 2.2 chumbaq-core: `ChumbaqConfig` (Builder Pattern)
 
 ```kotlin
-// com.dyplink.sdk.DyplinkConfig
-class DyplinkConfig private constructor(
+// com.chumbaq.sdk.ChumbaqConfig
+class ChumbaqConfig private constructor(
     val baseUrl: String,
     val apiKey: String,
     val projectId: String,
@@ -278,17 +278,17 @@ class DyplinkConfig private constructor(
         fun enableAutoDeviceInfo(enabled: Boolean): Builder       // default: true
         fun deepLinkHosts(hosts: List<String>): Builder
         fun customScheme(scheme: String): Builder
-        fun build(): DyplinkConfig
+        fun build(): ChumbaqConfig
     }
 
     enum class LogLevel { NONE, ERROR, WARN, INFO, DEBUG, VERBOSE }
 }
 ```
 
-### 2.3 dyplink-core: Public Models
+### 2.3 chumbaq-core: Public Models
 
 ```kotlin
-// com.dyplink.sdk.model.DeepLinkResult
+// com.chumbaq.sdk.model.DeepLinkResult
 data class DeepLinkResult(
     val url: String,                          // Full URL that was opened
     val shortCode: String?,                   // Extracted short code if applicable
@@ -297,7 +297,7 @@ data class DeepLinkResult(
     val linkId: String?,                      // Link UUID from server
 )
 
-// com.dyplink.sdk.model.DeferredMatchResult
+// com.chumbaq.sdk.model.DeferredMatchResult
 data class DeferredMatchResult(
     val matched: Boolean,
     val linkId: String?,
@@ -305,7 +305,7 @@ data class DeferredMatchResult(
     val params: Map<String, Any>?,
 )
 
-// com.dyplink.sdk.model.IdentifyParams
+// com.chumbaq.sdk.model.IdentifyParams
 class IdentifyParams private constructor(/* fields */) {
     class Builder {
         fun distinctId(id: String): Builder
@@ -335,7 +335,7 @@ class IdentifyParams private constructor(/* fields */) {
     }
 }
 
-// com.dyplink.sdk.model.IdentifyResult
+// com.chumbaq.sdk.model.IdentifyResult
 data class IdentifyResult(
     val id: String,
     val projectId: String,
@@ -345,7 +345,7 @@ data class IdentifyResult(
     val platform: String,
 )
 
-// com.dyplink.sdk.model.TrackConversionParams
+// com.chumbaq.sdk.model.TrackConversionParams
 data class TrackConversionParams(
     val eventType: String,
     val shortCode: String? = null,
@@ -354,18 +354,18 @@ data class TrackConversionParams(
     val metadata: Map<String, Any>? = null,
 )
 
-// com.dyplink.sdk.model.RevenueParams -- not needed, trackRevenue takes primitives
+// com.chumbaq.sdk.model.RevenueParams -- not needed, trackRevenue takes primitives
 
-// com.dyplink.sdk.model.DyplinkError
-sealed class DyplinkError : Exception() {
-    data class NotInitialized(override val message: String = "Dyplink SDK not initialized") : DyplinkError()
-    data class NetworkError(override val message: String, val statusCode: Int? = null) : DyplinkError()
-    data class ApiError(override val message: String, val statusCode: Int) : DyplinkError()
-    data class InvalidConfig(override val message: String) : DyplinkError()
+// com.chumbaq.sdk.model.ChumbaqError
+sealed class ChumbaqError : Exception() {
+    data class NotInitialized(override val message: String = "Chumbaq SDK not initialized") : ChumbaqError()
+    data class NetworkError(override val message: String, val statusCode: Int? = null) : ChumbaqError()
+    data class ApiError(override val message: String, val statusCode: Int) : ChumbaqError()
+    data class InvalidConfig(override val message: String) : ChumbaqError()
 }
 
 // Callback interface for Java interop
-fun interface DyplinkCallback<T> {
+fun interface ChumbaqCallback<T> {
     fun onResult(result: Result<T>)
 }
 
@@ -375,26 +375,26 @@ fun interface DeepLinkListener {
 }
 ```
 
-### 2.4 dyplink-push: `DyplinkPush`
+### 2.4 chumbaq-push: `ChumbaqPush`
 
 ```kotlin
-// com.dyplink.push.DyplinkPush
-object DyplinkPush {
+// com.chumbaq.push.ChumbaqPush
+object ChumbaqPush {
 
     /**
-     * Initialize push module. Call after Dyplink.init().
+     * Initialize push module. Call after Chumbaq.init().
      * Automatically retrieves current FCM token and registers it.
      */
     fun init(context: Context)
 
     /**
      * Manually register an FCM token.
-     * Typically not needed -- the DyplinkMessagingService handles this automatically.
+     * Typically not needed -- the ChumbaqMessagingService handles this automatically.
      */
     suspend fun registerToken(token: String)
 
     /** Java callback variant. */
-    fun registerToken(token: String, callback: DyplinkCallback<Unit>?)
+    fun registerToken(token: String, callback: ChumbaqCallback<Unit>?)
 
     /**
      * Unregister the current FCM token. Call on logout.
@@ -402,7 +402,7 @@ object DyplinkPush {
     suspend fun unregisterToken()
 
     /** Java callback variant. */
-    fun unregisterToken(callback: DyplinkCallback<Unit>?)
+    fun unregisterToken(callback: ChumbaqCallback<Unit>?)
 
     /**
      * Whether push notifications are currently enabled.
@@ -410,20 +410,20 @@ object DyplinkPush {
     val isRegistered: Boolean
 }
 
-// com.dyplink.push.DyplinkMessagingService
+// com.chumbaq.push.ChumbaqMessagingService
 // Extend in host app, or use directly if no custom handling needed.
-open class DyplinkMessagingService : FirebaseMessagingService() {
+open class ChumbaqMessagingService : FirebaseMessagingService() {
     // Automatically handles onNewToken and onMessageReceived
-    // Subclass and override onDyplinkMessage(remoteMessage) for custom handling
-    open fun onDyplinkMessage(remoteMessage: RemoteMessage): Boolean  // return true if handled
+    // Subclass and override onChumbaqMessage(remoteMessage) for custom handling
+    open fun onChumbaqMessage(remoteMessage: RemoteMessage): Boolean  // return true if handled
 }
 ```
 
-### 2.5 dyplink-banners: `DyplinkBanners`
+### 2.5 chumbaq-banners: `ChumbaqBanners`
 
 ```kotlin
-// com.dyplink.banners.DyplinkBanners
-object DyplinkBanners {
+// com.chumbaq.banners.ChumbaqBanners
+object ChumbaqBanners {
 
     /**
      * Load banners for a category. Returns the category config and banners.
@@ -431,7 +431,7 @@ object DyplinkBanners {
     suspend fun loadBanners(categoryId: String): BannerCategory
 
     /** Java callback variant. */
-    fun loadBanners(categoryId: String, callback: DyplinkCallback<BannerCategory>)
+    fun loadBanners(categoryId: String, callback: ChumbaqCallback<BannerCategory>)
 
     /**
      * Create a BannerCarouselView programmatically.
@@ -444,7 +444,7 @@ object DyplinkBanners {
     ): BannerCarouselView
 }
 
-// com.dyplink.banners.model.BannerCategory
+// com.chumbaq.banners.model.BannerCategory
 data class BannerCategory(
     val id: String,
     val name: String,
@@ -458,7 +458,7 @@ data class BannerCategory(
     val banners: List<Banner>,
 )
 
-// com.dyplink.banners.model.Banner
+// com.chumbaq.banners.model.Banner
 data class Banner(
     val id: String,
     val title: String,
@@ -468,7 +468,7 @@ data class Banner(
     val metadata: Map<String, Any>?,
 )
 
-// com.dyplink.banners.ui.BannerCarouselView
+// com.chumbaq.banners.ui.BannerCarouselView
 // Custom ViewGroup; can be used in XML or programmatically
 class BannerCarouselView @JvmOverloads constructor(
     context: Context, attrs: AttributeSet? = null, defStyleAttr: Int = 0
@@ -489,25 +489,25 @@ class BannerCarouselView @JvmOverloads constructor(
 ### Dependency Graph
 
 ```
-Dyplink (singleton)
-  ├── DyplinkConfig (immutable, set once)
+Chumbaq (singleton)
+  ├── ChumbaqConfig (immutable, set once)
   ├── ApiClient (OkHttp + interceptors)
   │     ├── ApiKeyInterceptor
   │     └── RetryInterceptor
   ├── RequestExecutor (wraps ApiClient with coroutines)
-  ├── DyplinkPreferences (SharedPreferences)
+  ├── ChumbaqPreferences (SharedPreferences)
   │     ├── device fingerprint
   │     ├── anonymous ID
   │     ├── identified ID
   │     └── deferred match flag
-  ├── DyplinkDatabase (Room)
+  ├── ChumbaqDatabase (Room)
   │     └── EventQueueDao
   ├── EventQueueManager
-  │     ├── DyplinkDatabase
+  │     ├── ChumbaqDatabase
   │     ├── RequestExecutor
   │     └── ConnectivityMonitor
   ├── FingerprintProvider
-  │     └── DyplinkPreferences
+  │     └── ChumbaqPreferences
   ├── DeviceInfoCollector
   │     └── Context (Build, TelephonyManager, DisplayMetrics)
   ├── IdentityManager
@@ -523,7 +523,7 @@ Dyplink (singleton)
   │     ├── RequestExecutor
   │     ├── DeviceInfoCollector
   │     ├── InstallReferrerClient
-  │     └── DyplinkPreferences
+  │     └── ChumbaqPreferences
   ├── IntentParser
   ├── AppLifecycleObserver
   │     ├── EventQueueManager (flush on background)
@@ -536,11 +536,11 @@ Dyplink (singleton)
 
 ### Initialization Sequence
 
-1. `Dyplink.init(context, config)` is called from `Application.onCreate()`
+1. `Chumbaq.init(context, config)` is called from `Application.onCreate()`
 2. Validates config (baseUrl, apiKey, projectId non-empty)
 3. Creates `ApiClient` with OkHttp, `ApiKeyInterceptor`, `RetryInterceptor`
-4. Creates `DyplinkPreferences` -- restores or generates anonymous ID and device fingerprint
-5. Opens Room `DyplinkDatabase`
+4. Creates `ChumbaqPreferences` -- restores or generates anonymous ID and device fingerprint
+5. Opens Room `ChumbaqDatabase`
 6. Creates `EventQueueManager` with periodic flush timer (config.flushIntervalSeconds)
 7. Creates `ConnectivityMonitor` -- observes network changes, triggers flush on reconnect
 8. Creates `IdentityManager`, `EventTracker`, `ConversionTracker`, `DeferredDeepLinkMatcher`
@@ -549,7 +549,7 @@ Dyplink (singleton)
 
 ### Thread Model
 
-All public methods on `Dyplink` are thread-safe. The internal architecture uses:
+All public methods on `Chumbaq` are thread-safe. The internal architecture uses:
 
 - **`Dispatchers.IO`** for all network requests and database operations
 - **`Dispatchers.Main`** for callbacks and listener invocations
@@ -589,8 +589,8 @@ EventQueueManager.flush()
 ### 4.1 Room Entity
 
 ```kotlin
-// com.dyplink.sdk.internal.storage.EventQueueEntity
-@Entity(tableName = "dyplink_event_queue")
+// com.chumbaq.sdk.internal.storage.EventQueueEntity
+@Entity(tableName = "chumbaq_event_queue")
 data class EventQueueEntity(
     @PrimaryKey(autoGenerate = true)
     val id: Long = 0,
@@ -621,7 +621,7 @@ data class EventQueueEntity(
 ### 4.2 Room DAO
 
 ```kotlin
-// com.dyplink.sdk.internal.storage.EventQueueDao
+// com.chumbaq.sdk.internal.storage.EventQueueDao
 @Dao
 interface EventQueueDao {
 
@@ -632,14 +632,14 @@ interface EventQueueDao {
     suspend fun insertAll(events: List<EventQueueEntity>)
 
     @Query("""
-        SELECT * FROM dyplink_event_queue
+        SELECT * FROM chumbaq_event_queue
         WHERE next_retry_at <= :now
         ORDER BY created_at ASC
         LIMIT :batchSize
     """)
     suspend fun getNextBatch(now: Long = System.currentTimeMillis(), batchSize: Int = 50): List<EventQueueEntity>
 
-    @Query("SELECT COUNT(*) FROM dyplink_event_queue")
+    @Query("SELECT COUNT(*) FROM chumbaq_event_queue")
     suspend fun count(): Int
 
     @Delete
@@ -648,16 +648,16 @@ interface EventQueueDao {
     @Delete
     suspend fun deleteAll(events: List<EventQueueEntity>)
 
-    @Query("DELETE FROM dyplink_event_queue WHERE id IN (:ids)")
+    @Query("DELETE FROM chumbaq_event_queue WHERE id IN (:ids)")
     suspend fun deleteByIds(ids: List<Long>)
 
-    @Query("UPDATE dyplink_event_queue SET retry_count = retry_count + 1, next_retry_at = :nextRetryAt WHERE id = :id")
+    @Query("UPDATE chumbaq_event_queue SET retry_count = retry_count + 1, next_retry_at = :nextRetryAt WHERE id = :id")
     suspend fun incrementRetry(id: Long, nextRetryAt: Long)
 
-    @Query("DELETE FROM dyplink_event_queue WHERE retry_count >= max_retries")
+    @Query("DELETE FROM chumbaq_event_queue WHERE retry_count >= max_retries")
     suspend fun purgeExhaustedRetries()
 
-    @Query("DELETE FROM dyplink_event_queue WHERE created_at < :cutoff")
+    @Query("DELETE FROM chumbaq_event_queue WHERE created_at < :cutoff")
     suspend fun purgeOlderThan(cutoff: Long)
 }
 ```
@@ -665,16 +665,16 @@ interface EventQueueDao {
 ### 4.3 Room Database
 
 ```kotlin
-// com.dyplink.sdk.internal.storage.DyplinkDatabase
+// com.chumbaq.sdk.internal.storage.ChumbaqDatabase
 @Database(entities = [EventQueueEntity::class], version = 1, exportSchema = false)
-abstract class DyplinkDatabase : RoomDatabase() {
+abstract class ChumbaqDatabase : RoomDatabase() {
     abstract fun eventQueueDao(): EventQueueDao
 
     companion object {
-        private const val DB_NAME = "dyplink_sdk.db"
+        private const val DB_NAME = "chumbaq_sdk.db"
 
-        fun create(context: Context): DyplinkDatabase {
-            return Room.databaseBuilder(context.applicationContext, DyplinkDatabase::class.java, DB_NAME)
+        fun create(context: Context): ChumbaqDatabase {
+            return Room.databaseBuilder(context.applicationContext, ChumbaqDatabase::class.java, DB_NAME)
                 .fallbackToDestructiveMigration()
                 .build()
         }
@@ -685,11 +685,11 @@ abstract class DyplinkDatabase : RoomDatabase() {
 ### 4.4 EventQueueManager (Sync Strategy)
 
 ```kotlin
-// com.dyplink.sdk.internal.storage.EventQueueManager
+// com.chumbaq.sdk.internal.storage.EventQueueManager
 internal class EventQueueManager(
     private val dao: EventQueueDao,
     private val requestExecutor: RequestExecutor,
-    private val config: DyplinkConfig,
+    private val config: ChumbaqConfig,
     private val scope: CoroutineScope,
 ) {
     private val flushChannel = Channel<Unit>(Channel.CONFLATED)
@@ -822,8 +822,8 @@ internal class EventQueueManager(
 ### 5.2 Intent Parsing (IntentParser)
 
 ```kotlin
-// com.dyplink.sdk.internal.deeplink.IntentParser
-internal class IntentParser(private val config: DyplinkConfig) {
+// com.chumbaq.sdk.internal.deeplink.IntentParser
+internal class IntentParser(private val config: ChumbaqConfig) {
 
     fun parse(intent: Intent): DeepLinkResult? {
         val data = intent.data ?: return null
@@ -867,7 +867,7 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
 
         // Handle App Links and URI scheme deep links
-        val deepLink = Dyplink.handleDeepLink(intent)
+        val deepLink = Chumbaq.handleDeepLink(intent)
         if (deepLink != null) {
             navigateToContent(deepLink)
         }
@@ -875,7 +875,7 @@ class MainActivity : AppCompatActivity() {
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
-        val deepLink = Dyplink.handleDeepLink(intent)
+        val deepLink = Chumbaq.handleDeepLink(intent)
         if (deepLink != null) {
             navigateToContent(deepLink)
         }
@@ -886,7 +886,7 @@ class MainActivity : AppCompatActivity() {
 ### 5.4 Deferred Deep Link Flow
 
 ```
-1. User clicks Dyplink short URL on mobile browser
+1. User clicks Chumbaq short URL on mobile browser
    → Server detects Android, shows interstitial
    → User redirected to Play Store
    → ClickEvent recorded with IP, UA, platform
@@ -894,13 +894,13 @@ class MainActivity : AppCompatActivity() {
 2. User installs app and opens it for the first time
 
 3. In Application.onCreate():
-   Dyplink.init(this, config)
+   Chumbaq.init(this, config)
    // SDK internally checks if deferred match was already attempted
-   // (persisted in SharedPreferences as "dyplink_deferred_matched")
+   // (persisted in SharedPreferences as "chumbaq_deferred_matched")
 
 4. In the launcher Activity.onCreate():
    lifecycleScope.launch {
-       val result = Dyplink.matchDeferredDeepLink()
+       val result = Chumbaq.matchDeferredDeepLink()
        if (result.matched) {
            // Route to the correct content
            navigateToContent(DeepLinkResult(
@@ -918,14 +918,14 @@ class MainActivity : AppCompatActivity() {
    b. Collect device fingerprint: IP (from server echo or best effort), OS, osVersion, model, screenWidth, screenHeight
    c. Check Install Referrer API for any cookieRef (utm_content parameter may carry shortCode)
    d. POST /api/deferred/match with { fingerprint: {...}, cookieRef?: "..." }
-   e. If matched, set "dyplink_deferred_matched" = true in SharedPreferences
+   e. If matched, set "chumbaq_deferred_matched" = true in SharedPreferences
    f. Store linkId + shortCode in SharedPreferences for later conversion attribution
    g. Return DeferredMatchResult
 
 6. User completes signup:
-   Dyplink.trackConversion(TrackConversionParams(
+   Chumbaq.trackConversion(TrackConversionParams(
        eventType = "signup",
-       shortCode = Dyplink.getAttributedShortCode(),  // from stored deferred match
+       shortCode = Chumbaq.getAttributedShortCode(),  // from stored deferred match
        externalUserId = "user-123",
        metadata = mapOf("plan" to "free"),
    ))
@@ -934,7 +934,7 @@ class MainActivity : AppCompatActivity() {
 ### 5.5 Install Referrer Integration
 
 ```kotlin
-// com.dyplink.sdk.internal.deeplink.InstallReferrerClient
+// com.chumbaq.sdk.internal.deeplink.InstallReferrerClient
 internal class InstallReferrerClient(private val context: Context) {
 
     suspend fun getReferrer(): InstallReferrerResult? = suspendCancellableCoroutine { cont ->
@@ -996,11 +996,11 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "dyplink-android-sdk"
+rootProject.name = "chumbaq-android-sdk"
 
-include(":dyplink-core")
-include(":dyplink-push")
-include(":dyplink-banners")
+include(":chumbaq-core")
+include(":chumbaq-push")
+include(":chumbaq-banners")
 include(":sample")
 ```
 
@@ -1081,7 +1081,7 @@ kotlin-kapt = { id = "org.jetbrains.kotlin.kapt", version.ref = "kotlin" }
 maven-publish = { id = "maven-publish" }
 ```
 
-### 6.4 `dyplink-core/build.gradle.kts`
+### 6.4 `chumbaq-core/build.gradle.kts`
 
 ```kotlin
 plugins {
@@ -1092,7 +1092,7 @@ plugins {
 }
 
 android {
-    namespace = "com.dyplink.sdk"
+    namespace = "com.chumbaq.sdk"
     compileSdk = 34
 
     defaultConfig {
@@ -1151,8 +1151,8 @@ afterEvaluate {
         publications {
             create<MavenPublication>("release") {
                 from(components["release"])
-                groupId = "com.dyplink"
-                artifactId = "dyplink-core"
+                groupId = "com.chumbaq"
+                artifactId = "chumbaq-core"
                 version = project.findProperty("SDK_VERSION") as? String ?: "0.1.0"
             }
         }
@@ -1160,7 +1160,7 @@ afterEvaluate {
 }
 ```
 
-### 6.5 `dyplink-push/build.gradle.kts`
+### 6.5 `chumbaq-push/build.gradle.kts`
 
 ```kotlin
 plugins {
@@ -1170,14 +1170,14 @@ plugins {
 }
 
 android {
-    namespace = "com.dyplink.push"
+    namespace = "com.chumbaq.push"
     compileSdk = 34
     defaultConfig { minSdk = 21 }
     // ... same compileOptions/kotlinOptions as core
 }
 
 dependencies {
-    implementation(project(":dyplink-core"))
+    implementation(project(":chumbaq-core"))
     implementation(libs.firebase.messaging)
     implementation(libs.coroutines.core)
     implementation(libs.coroutines.android)
@@ -1188,7 +1188,7 @@ dependencies {
 }
 ```
 
-### 6.6 `dyplink-banners/build.gradle.kts`
+### 6.6 `chumbaq-banners/build.gradle.kts`
 
 ```kotlin
 plugins {
@@ -1198,7 +1198,7 @@ plugins {
 }
 
 android {
-    namespace = "com.dyplink.banners"
+    namespace = "com.chumbaq.banners"
     compileSdk = 34
     defaultConfig { minSdk = 21 }
     buildFeatures { viewBinding = true }
@@ -1206,7 +1206,7 @@ android {
 }
 
 dependencies {
-    implementation(project(":dyplink-core"))
+    implementation(project(":chumbaq-core"))
     implementation(libs.appcompat)
     implementation(libs.material)
     implementation(libs.viewpager2)
@@ -1223,16 +1223,16 @@ dependencies {
 ### 6.7 `consumer-rules.pro` (shipped with AAR)
 
 ```proguard
-# Dyplink SDK ProGuard rules
--keep class com.dyplink.sdk.Dyplink { *; }
--keep class com.dyplink.sdk.DyplinkConfig { *; }
--keep class com.dyplink.sdk.DyplinkConfig$Builder { *; }
--keep class com.dyplink.sdk.DyplinkConfig$LogLevel { *; }
--keep class com.dyplink.sdk.model.** { *; }
--keep class com.dyplink.sdk.deeplink.** { *; }
+# Chumbaq SDK ProGuard rules
+-keep class com.chumbaq.sdk.Chumbaq { *; }
+-keep class com.chumbaq.sdk.ChumbaqConfig { *; }
+-keep class com.chumbaq.sdk.ChumbaqConfig$Builder { *; }
+-keep class com.chumbaq.sdk.ChumbaqConfig$LogLevel { *; }
+-keep class com.chumbaq.sdk.model.** { *; }
+-keep class com.chumbaq.sdk.deeplink.** { *; }
 
 # Keep Room entities
--keep class com.dyplink.sdk.internal.storage.EventQueueEntity { *; }
+-keep class com.chumbaq.sdk.internal.storage.EventQueueEntity { *; }
 
 # OkHttp
 -dontwarn okhttp3.**
@@ -1243,12 +1243,12 @@ dependencies {
 -keepclassmembers class kotlinx.coroutines.** { volatile <fields>; }
 
 # Push module
--keep class com.dyplink.push.** { *; }
+-keep class com.chumbaq.push.** { *; }
 
 # Banners module
--keep class com.dyplink.banners.** { *; }
--keep class com.dyplink.banners.model.** { *; }
--keep class com.dyplink.banners.ui.** { *; }
+-keep class com.chumbaq.banners.** { *; }
+-keep class com.chumbaq.banners.model.** { *; }
+-keep class com.chumbaq.banners.ui.** { *; }
 ```
 
 ### 6.8 `gradle.properties`
@@ -1257,7 +1257,7 @@ dependencies {
 org.gradle.jvmargs=-Xmx2048m -Dfile.encoding=UTF-8
 android.useAndroidX=true
 SDK_VERSION=0.1.0
-GROUP=com.dyplink
+GROUP=com.chumbaq
 ```
 
 ---
@@ -1270,17 +1270,17 @@ GROUP=com.dyplink
 
 **Files to create:**
 1. Root `build.gradle.kts`, `settings.gradle.kts`, `gradle.properties`, `gradle/libs.versions.toml`
-2. `dyplink-core/build.gradle.kts`, `consumer-rules.pro`, `proguard-rules.pro`
-3. `dyplink-core/src/main/AndroidManifest.xml`
-4. `DyplinkConfig.kt` -- builder pattern, validation
+2. `chumbaq-core/build.gradle.kts`, `consumer-rules.pro`, `proguard-rules.pro`
+3. `chumbaq-core/src/main/AndroidManifest.xml`
+4. `ChumbaqConfig.kt` -- builder pattern, validation
 5. `internal/util/Logger.kt`
-6. `internal/storage/DyplinkPreferences.kt` -- SharedPreferences wrapper
+6. `internal/storage/ChumbaqPreferences.kt` -- SharedPreferences wrapper
 7. `internal/identity/FingerprintProvider.kt` -- UUID generation and persistence
 8. `internal/network/ApiKeyInterceptor.kt`
 9. `internal/network/RetryInterceptor.kt`
 10. `internal/network/ApiClient.kt` -- OkHttp client creation
 11. `internal/network/RequestExecutor.kt` -- coroutine-based POST/GET
-12. `model/DyplinkError.kt`
+12. `model/ChumbaqError.kt`
 
 **Verification:** Unit tests for config validation, interceptors work with MockWebServer.
 
@@ -1291,7 +1291,7 @@ GROUP=com.dyplink
 **Files to create:**
 1. `internal/storage/EventQueueEntity.kt`
 2. `internal/storage/EventQueueDao.kt`
-3. `internal/storage/DyplinkDatabase.kt`
+3. `internal/storage/ChumbaqDatabase.kt`
 4. `internal/storage/EventQueueManager.kt`
 5. `internal/util/ConnectivityMonitor.kt`
 6. `internal/events/EventTracker.kt`
@@ -1322,7 +1322,7 @@ GROUP=com.dyplink
 2. `internal/deeplink/DeferredDeepLinkMatcher.kt`
 3. `internal/deeplink/InstallReferrerClient.kt`
 4. `deeplink/DeepLinkHandler.kt` -- public extension functions
-5. `deeplink/DyplinkDeepLinkActivity.kt` -- trampoline activity
+5. `deeplink/ChumbaqDeepLinkActivity.kt` -- trampoline activity
 6. `model/DeepLinkResult.kt`
 7. `model/DeferredMatchResult.kt`
 
@@ -1330,13 +1330,13 @@ GROUP=com.dyplink
 
 ### Phase 5: Lifecycle + Session + Main Entry Point (Days 14-16)
 
-**Goal:** Wire everything together in the `Dyplink` singleton. Lifecycle-aware flushing and session tracking.
+**Goal:** Wire everything together in the `Chumbaq` singleton. Lifecycle-aware flushing and session tracking.
 
 **Files to create:**
 1. `internal/lifecycle/AppLifecycleObserver.kt`
 2. `internal/lifecycle/SessionTracker.kt`
-3. `Dyplink.kt` -- the main singleton, wiring all internal components
-4. `DyplinkInitializer.kt` -- optional App Startup initializer
+3. `Chumbaq.kt` -- the main singleton, wiring all internal components
+4. `ChumbaqInitializer.kt` -- optional App Startup initializer
 5. `internal/util/JsonUtils.kt`
 
 **Verification:** Integration test: init SDK, track events, verify queue flushes on MockWebServer. Session start/end tracking. Deep link handling end-to-end.
@@ -1346,11 +1346,11 @@ GROUP=com.dyplink
 **Goal:** FCM token management and push notification handling.
 
 **Files to create:**
-1. `dyplink-push/build.gradle.kts`
-2. `dyplink-push/src/main/AndroidManifest.xml`
-3. `DyplinkPush.kt`
+1. `chumbaq-push/build.gradle.kts`
+2. `chumbaq-push/src/main/AndroidManifest.xml`
+3. `ChumbaqPush.kt`
 4. `PushTokenManager.kt`
-5. `DyplinkMessagingService.kt`
+5. `ChumbaqMessagingService.kt`
 6. `PushNotificationHandler.kt`
 
 **Verification:** Unit tests for token registration/unregistration with MockWebServer. Manual testing with FCM.
@@ -1360,9 +1360,9 @@ GROUP=com.dyplink
 **Goal:** Native banner carousel UI with API integration.
 
 **Files to create:**
-1. `dyplink-banners/build.gradle.kts`
-2. `dyplink-banners/src/main/AndroidManifest.xml`
-3. `DyplinkBanners.kt`
+1. `chumbaq-banners/build.gradle.kts`
+2. `chumbaq-banners/src/main/AndroidManifest.xml`
+3. `ChumbaqBanners.kt`
 4. `BannerManager.kt`
 5. `model/BannerCategory.kt`, `model/Banner.kt`
 6. `internal/BannerApiClient.kt`
@@ -1397,11 +1397,11 @@ GROUP=com.dyplink
 
 ### 8.1 Unit Tests (JVM, no Android framework needed)
 
-Located in `src/test/kotlin/`. Run with `./gradlew :dyplink-core:test`.
+Located in `src/test/kotlin/`. Run with `./gradlew :chumbaq-core:test`.
 
 | Component | Testing Approach | Key Tools |
 |---|---|---|
-| `DyplinkConfig.Builder` | Validate defaults, required fields, invalid values throw | JUnit |
+| `ChumbaqConfig.Builder` | Validate defaults, required fields, invalid values throw | JUnit |
 | `ApiKeyInterceptor` | Verify X-API-Key header added to requests | OkHttp MockWebServer |
 | `RetryInterceptor` | Verify retry count, exponential backoff timing, non-retryable status codes (4xx) skip retry | MockWebServer, advance time |
 | `RequestExecutor` | Verify POST/GET calls, error handling, JSON serialization | MockWebServer |
@@ -1418,13 +1418,13 @@ Located in `src/test/kotlin/`. Run with `./gradlew :dyplink-core:test`.
 
 ### 8.2 Instrumented Tests (Android device/emulator)
 
-Located in `src/androidTest/kotlin/`. Run with `./gradlew :dyplink-core:connectedAndroidTest`.
+Located in `src/androidTest/kotlin/`. Run with `./gradlew :chumbaq-core:connectedAndroidTest`.
 
 | Component | Testing Approach |
 |---|---|
-| `DyplinkDatabase` + `EventQueueDao` | Room in-memory database tests: insert, getNextBatch, deleteByIds, incrementRetry, purgeExhaustedRetries, purgeOlderThan |
+| `ChumbaqDatabase` + `EventQueueDao` | Room in-memory database tests: insert, getNextBatch, deleteByIds, incrementRetry, purgeExhaustedRetries, purgeOlderThan |
 | Deep link handling | Instrument an Activity, send intents with various URIs, verify `handleDeepLink` returns correct `DeepLinkResult` |
-| `DyplinkPreferences` | Verify actual SharedPreferences read/write on a real Context |
+| `ChumbaqPreferences` | Verify actual SharedPreferences read/write on a real Context |
 | Full SDK init | Initialize SDK, call track/identify, verify no crashes, verify Room DB contains events |
 
 ### 8.3 Integration Tests
@@ -1458,9 +1458,9 @@ A separate test class that starts MockWebServer, initializes the full SDK pointi
 
 4. **`Channel(CONFLATED)` for flush coalescing.** Multiple triggers (timer, network reconnect, app background) can fire rapidly. A conflated channel ensures at most one flush runs at a time without blocking callers.
 
-5. **Java interop via overloaded callback methods.** Every suspend function on the public API has a corresponding `fun xxx(callback: DyplinkCallback<T>)` overload that wraps the coroutine call. The `DyplinkCallback` is a `fun interface` for SAM conversion in both Kotlin and Java.
+5. **Java interop via overloaded callback methods.** Every suspend function on the public API has a corresponding `fun xxx(callback: ChumbaqCallback<T>)` overload that wraps the coroutine call. The `ChumbaqCallback` is a `fun interface` for SAM conversion in both Kotlin and Java.
 
-6. **Three separate Gradle modules.** The `dyplink-push` and `dyplink-banners` modules are optional. Apps that do not use FCM or banners do not need to include them, keeping the core AAR small (estimated ~200KB for core only).
+6. **Three separate Gradle modules.** The `chumbaq-push` and `chumbaq-banners` modules are optional. Apps that do not use FCM or banners do not need to include them, keeping the core AAR small (estimated ~200KB for core only).
 
 7. **Not using Gson/Moshi/kotlinx.serialization.** For an SDK, minimizing transitive dependencies is critical. The API surface is simple enough that `org.json.JSONObject` (included in Android framework) suffices. This avoids version conflicts with host app serialization libraries.
 

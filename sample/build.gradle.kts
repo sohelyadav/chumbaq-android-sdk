@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.dyplink.sample"
+    namespace = "com.chumbaq.sample"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "com.dyplink.sample"
+        applicationId = "com.chumbaq.sample"
         minSdk = 21
         targetSdk = 34
         versionCode = 1
@@ -36,9 +36,9 @@ android {
 }
 
 dependencies {
-    implementation(project(":dyplink-core"))
-    implementation(project(":dyplink-push"))
-    implementation(project(":dyplink-banners"))
+    implementation(project(":chumbaq-core"))
+    implementation(project(":chumbaq-push"))
+    implementation(project(":chumbaq-banners"))
     implementation(libs.appcompat)
     implementation(libs.material)
     implementation(libs.core.ktx)

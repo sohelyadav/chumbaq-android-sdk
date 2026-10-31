@@ -5,7 +5,7 @@
     <application
         android:name=".SampleApplication"
         android:allowBackup="true"
-        android:label="Dyplink Sample"
+        android:label="Chumbaq Sample"
         android:supportsRtl="true"
         android:theme="@style/Theme.MaterialComponents.Light.DarkActionBar">
 
@@ -24,7 +24,7 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
                     android:scheme="https"
-                    android:host="links.dyplink.com" />
+                    android:host="links.chumbaq.com" />
             </intent-filter>
 
             <!-- Custom URI Scheme -->
@@ -33,7 +33,7 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data
-                    android:scheme="dyplink"
+                    android:scheme="chumbaq"
                     android:host="open" />
             </intent-filter>
         </activity>

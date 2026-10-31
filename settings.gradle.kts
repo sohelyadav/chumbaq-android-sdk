@@ -14,11 +14,11 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "dyplink-android-sdk"
+rootProject.name = "chumbaq-android-sdk"
 
-include(":dyplink-core")
-include(":dyplink-push")
-include(":dyplink-banners")
-include(":dyplink-messages")
-include(":dyplink-bom")
+include(":chumbaq-core")
+include(":chumbaq-push")
+include(":chumbaq-banners")
+include(":chumbaq-messages")
+include(":chumbaq-bom")
 include(":sample")
