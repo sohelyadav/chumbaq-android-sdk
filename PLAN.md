@@ -8,7 +8,7 @@ I do not have access to the Write tool in this read-only session, so I will pres
 
 The SDK follows a multi-module Gradle project with three library modules (core, push, banners) and one sample app module. Each file is listed below with its purpose.
 
-### Root: `/Users/sohelyadav/Development/dyplink/dyplink-android-sdk/`
+### Root: `/Users/sohelyadav/Development/chumbaq/chumbaq-android-sdk/`
 
 ```
 chumbaq-android-sdk/
@@ -1473,8 +1473,8 @@ A separate test class that starts MockWebServer, initializes the full SDK pointi
 ---
 
 ### Critical Files for Implementation
-- `/Users/sohelyadav/Development/dyplink/dyplink-platform/packages/sdk/src/index.ts` -- JS SDK main class, defines the public API contract that the Android SDK must mirror
-- `/Users/sohelyadav/Development/dyplink/dyplink-platform/apps/api/src/modules/identity/dto/identify.dto.ts` -- the exact field names and types expected by the identity API endpoint
-- `/Users/sohelyadav/Development/dyplink/dyplink-platform/apps/api/src/modules/redirect/deferred-match.service.ts` -- the deferred matching logic the Android SDK must interact with (fingerprint structure, 48-hour window, cookie ref matching)
-- `/Users/sohelyadav/Development/dyplink/dyplink-platform/apps/api/src/modules/in-app-banners/entities/banner-category.entity.ts` -- the banner category schema that defines the data model for the banners module
-- `/Users/sohelyadav/Development/dyplink/dyplink-platform/apps/api/src/modules/push-tokens/dto/register-token.dto.ts` -- the exact push token registration contract (projectId, deviceFingerprint, token, platform, provider)
+- `/Users/sohelyadav/Development/chumbaq/chumbaq-platform/packages/sdk/src/index.ts` -- JS SDK main class, defines the public API contract that the Android SDK must mirror
+- `/Users/sohelyadav/Development/chumbaq/chumbaq-platform/apps/api/src/modules/identity/dto/identify.dto.ts` -- the exact field names and types expected by the identity API endpoint
+- `/Users/sohelyadav/Development/chumbaq/chumbaq-platform/apps/api/src/modules/redirect/deferred-match.service.ts` -- the deferred matching logic the Android SDK must interact with (fingerprint structure, 48-hour window, cookie ref matching)
+- `/Users/sohelyadav/Development/chumbaq/chumbaq-platform/apps/api/src/modules/in-app-banners/entities/banner-category.entity.ts` -- the banner category schema that defines the data model for the banners module
+- `/Users/sohelyadav/Development/chumbaq/chumbaq-platform/apps/api/src/modules/push-tokens/dto/register-token.dto.ts` -- the exact push token registration contract (projectId, deviceFingerprint, token, platform, provider)
