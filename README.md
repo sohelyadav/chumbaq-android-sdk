@@ -1,70 +1,70 @@
-# Dyplink Android SDK
+# Chumbaq Android SDK
 
 Deep linking, deferred deep links, attribution, events, in-app messages,
-banners, and push notifications for Dyplink.
+banners, and push notifications for Chumbaq.
 
 `minSdk` 21, `compileSdk` 34.
 
 ## Installation
 
-Four modules. `dyplink-core` is the only mandatory one, and each of the
+Four modules. `chumbaq-core` is the only mandatory one, and each of the
 others depends on it. The BOM keeps their versions aligned:
 
 ```kotlin
 dependencies {
-    implementation(platform("in.dyplink:dyplink-bom:0.1.0"))
+    implementation(platform("in.chumbaq:chumbaq-bom:0.1.0"))
 
-    implementation("in.dyplink:dyplink-core")
-    implementation("in.dyplink:dyplink-push")       // optional
-    implementation("in.dyplink:dyplink-banners")    // optional
-    implementation("in.dyplink:dyplink-messages")   // optional
+    implementation("in.chumbaq:chumbaq-core")
+    implementation("in.chumbaq:chumbaq-push")       // optional
+    implementation("in.chumbaq:chumbaq-banners")    // optional
+    implementation("in.chumbaq:chumbaq-messages")   // optional
 }
 ```
 
 | Module | What it does |
 |---|---|
-| `dyplink-core` | Identity, events, deep links, deferred matching, offline queue, sessions |
-| `dyplink-push` | FCM token registration, campaign engagement, rich notification rendering |
-| `dyplink-banners` | A native carousel of a widget's banners |
-| `dyplink-messages` | In-app messages: modal, sheet, full screen, and top and bottom banners |
+| `chumbaq-core` | Identity, events, deep links, deferred matching, offline queue, sessions |
+| `chumbaq-push` | FCM token registration, campaign engagement, rich notification rendering |
+| `chumbaq-banners` | A native carousel of a widget's banners |
+| `chumbaq-messages` | In-app messages: modal, sheet, full screen, and top and bottom banners |
 
 ## Getting started
 
 ```kotlin
-val config = DyplinkConfig.Builder(
-    baseUrl = "https://your-dyplink-host",
+val config = ChumbaqConfig.Builder(
+    baseUrl = "https://your-chumbaq-host",
     apiKey = "<project API key>",
     projectId = "<project id>",
 ).build()
 
-Dyplink.init(context, config)
+Chumbaq.init(context, config)
 
 // Where a deep link should take the app. `DeepLinkListener` is a fun
 // interface, so a lambda is enough.
-Dyplink.setDeepLinkListener { result -> router.go(result) }
+Chumbaq.setDeepLinkListener { result -> router.go(result) }
 ```
 
 Then, from the app's own entry points:
 
 ```kotlin
 // An app link or custom-scheme intent.
-Dyplink.handleDeepLink(intent)
+Chumbaq.handleDeepLink(intent)
 
 // After a fresh install, to claim the click that led to it.
-val match = Dyplink.matchDeferredDeepLink()
+val match = Chumbaq.matchDeferredDeepLink()
 
 // Who this is, once they log in.
-Dyplink.identify(IdentifyParams.Builder().externalUserId("u_42").build())
+Chumbaq.identify(IdentifyParams.Builder().externalUserId("u_42").build())
 ```
 
 ## In-app messages
 
 ```kotlin
-DyplinkMessages.setMessageListener(listener)
+ChumbaqMessages.setMessageListener(listener)
 
-DyplinkMessages.onAppOpen(context)                  // app foreground
-DyplinkMessages.onScreenView(context, "Home")       // screen change
-DyplinkMessages.onEvent(context, "purchase")        // custom event
+ChumbaqMessages.onAppOpen(context)                  // app foreground
+ChumbaqMessages.onScreenView(context, "Home")       // screen change
+ChumbaqMessages.onEvent(context, "purchase")        // custom event
 ```
 
 The SDK draws the message itself, in whichever of the five layouts the
@@ -78,30 +78,30 @@ should do it there.
 One call, and that is the whole integration:
 
 ```kotlin
-DyplinkPush.init(context)
-DyplinkPush.registerToken(fcmToken)   // or let the service pick it up
+ChumbaqPush.init(context)
+ChumbaqPush.registerToken(fcmToken)   // or let the service pick it up
 ```
 
-`DyplinkMessagingService` is declared in the module's own manifest, so
+`ChumbaqMessagingService` is declared in the module's own manifest, so
 nothing needs adding to the app's. It registers tokens, reports delivery,
 impressions, clicks and dismissals, and renders the notification —
 including the rich content no provider carries natively.
 
 ### Handling messages yourself
 
-Subclass `DyplinkMessagingService` and declare the subclass. Return `true`
-from `onDyplinkMessage` to suppress the default notification; reporting and
+Subclass `ChumbaqMessagingService` and declare the subclass. Return `true`
+from `onChumbaqMessage` to suppress the default notification; reporting and
 token registration keep working either way.
 
 ```kotlin
-class MyMessagingService : DyplinkMessagingService() {
-    override fun onDyplinkMessage(message: RemoteMessage): Boolean {
+class MyMessagingService : ChumbaqMessagingService() {
+    override fun onChumbaqMessage(message: RemoteMessage): Boolean {
         // …handle it; true means "do not show the default notification"
         return true
     }
 
-    override fun onDyplinkTokenRefresh(token: String) {
-        // The Dyplink backend has already been told.
+    override fun onChumbaqTokenRefresh(token: String) {
+        // The Chumbaq backend has already been told.
     }
 }
 ```
@@ -123,7 +123,7 @@ SDK's at manifest-merge time, so the two do not both receive messages:
 
 ```xml
 <service
-    android:name="com.dyplink.push.DyplinkMessagingService"
+    android:name="com.chumbaq.push.ChumbaqMessagingService"
     tools:node="remove" />
 ```
 
@@ -145,8 +145,8 @@ content still arrives on a device that cannot draw it.
 
 ## Related SDKs
 
-- [iOS SDK](https://github.com/sohelyadav/dyplink-ios-sdk)
-- [Flutter SDK](https://github.com/sohelyadav/dyplink-flutter-sdk)
+- [iOS SDK](https://github.com/sohelyadav/chumbaq-ios-sdk)
+- [Flutter SDK](https://github.com/sohelyadav/chumbaq-flutter-sdk)
 
 ## License
 

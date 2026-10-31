@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <declare-styleable name="BannerCarouselView">
+        <attr name="chumbaq_categoryId" format="string" />
+        <attr name="chumbaq_autoRotate" format="boolean" />
+        <attr name="chumbaq_rotationInterval" format="integer" />
+    </declare-styleable>
+</resources>

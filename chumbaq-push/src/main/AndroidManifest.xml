@@ -1,0 +1,25 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+        <service
+            android:name="com.chumbaq.push.ChumbaqMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
+        <receiver
+            android:name="com.chumbaq.push.PushClickReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name="com.chumbaq.push.PushCarouselReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name="com.chumbaq.push.PushDismissReceiver"
+            android:exported="false" />
+    </application>
+
+</manifest>
