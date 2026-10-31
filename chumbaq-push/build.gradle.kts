@@ -38,6 +38,13 @@ android {
         jvmTarget = "1.8"
     }
 
+    packaging {
+        resources {
+            // JUnit 5 jars on the androidTest classpath each ship these.
+            excludes += setOf("/META-INF/LICENSE.md", "/META-INF/LICENSE-notice.md")
+        }
+    }
+
     testOptions {
         unitTests {
             // android.util.Log and friends are stubs on the unit-test
