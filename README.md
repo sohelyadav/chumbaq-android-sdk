@@ -1,6 +1,6 @@
 # Chumbaq Android SDK
 
-Deep linking, deferred deep links, attribution, events, in-app messages,
+Deep linking, deferred deep links, events, in-app messages,
 banners, and push notifications for Chumbaq.
 
 `minSdk` 21, `compileSdk` 34.
