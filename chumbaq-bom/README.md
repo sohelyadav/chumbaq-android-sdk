@@ -6,12 +6,12 @@
 
 ```kotlin
 dependencies {
-	implementation(platform("in.chumbaq:chumbaq-bom:0.1.0"))
+	implementation(platform("com.chumbaq:chumbaq-bom:0.1.0"))
 
-	implementation("in.chumbaq:chumbaq-core")
-	implementation("in.chumbaq:chumbaq-push")
-	implementation("in.chumbaq:chumbaq-banners")
-	implementation("in.chumbaq:chumbaq-messages")
+	implementation("com.chumbaq:chumbaq-core")
+	implementation("com.chumbaq:chumbaq-push")
+	implementation("com.chumbaq:chumbaq-banners")
+	implementation("com.chumbaq:chumbaq-messages")
 }
 ```
 
