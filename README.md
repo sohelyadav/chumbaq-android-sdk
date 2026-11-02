@@ -150,4 +150,6 @@ content still arrives on a device that cannot draw it.
 
 ## License
 
-TBD
+Copyright 2026 The Chumbaq Authors.
+
+Licensed under the [Apache License, Version 2.0](LICENSE).
