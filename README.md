@@ -198,6 +198,26 @@ person are kept; the response lists them in `notErased` (`notIncluded` for
 exports). After deleting a user, call `Chumbaq.reset()` on the device so it
 stops sending their id.
 
+## Running the sample app
+
+`sample/` is a small app that uses every module. Debug builds talk to a Chumbaq
+platform running on your machine; release builds use `https://api.chumbaq.com`.
+
+1. Put the API and project to use in `local.properties` (gitignored):
+   ```properties
+   chumbaq.baseUrl=http://10.0.2.2:3000
+   chumbaq.apiKey=<project API key>
+   chumbaq.projectId=<project id>
+   ```
+   `10.0.2.2` is the emulator's address for your machine. On a device over USB, run
+   `adb reverse tcp:3000 tcp:3000` and use `http://localhost:3000`. Plain HTTP is
+   allowed for these local addresses in debug builds only.
+2. For push, add an Android app with package `com.chumbaq.sample` to a Firebase
+   project, download its `google-services.json` into `sample/` (gitignored), and
+   upload that project's service account key in the Chumbaq dashboard. Without the
+   file the sample still builds, with push turned off.
+3. `./gradlew :sample:installDebug`. Use an emulator image with Google Play, which FCM needs.
+
 ## Related SDKs
 
 - [iOS SDK](https://github.com/sohelyadav/chumbaq-ios-sdk)
