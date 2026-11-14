@@ -6,7 +6,8 @@ package com.chumbaq.sdk.model
  * Use the [Builder] to construct instances:
  * ```
  * val params = IdentifyParams.Builder()
- *     .distinctId("user-123")
+ *     .externalUserId("user-123")
+ *     .userHash(hashFromYourServer)
  *     .firstName("Jane")
  *     .build()
  * ```
@@ -14,6 +15,12 @@ package com.chumbaq.sdk.model
 class IdentifyParams private constructor(
     val distinctId: String?,
     val externalUserId: String?,
+    /**
+     * Required with [externalUserId]: HMAC-SHA256 of the external user id under the
+     * project's identity secret, as hex, made on your own server (never put the secret in
+     * the app). Without it the server refuses the external id.
+     */
+    val userHash: String?,
     val firstName: String?,
     val lastName: String?,
     val phone: String?,
@@ -40,6 +47,7 @@ class IdentifyParams private constructor(
     class Builder {
         private var distinctId: String? = null
         private var externalUserId: String? = null
+        private var userHash: String? = null
         private var firstName: String? = null
         private var lastName: String? = null
         private var phone: String? = null
@@ -64,6 +72,7 @@ class IdentifyParams private constructor(
 
         fun distinctId(value: String) = apply { distinctId = value }
         fun externalUserId(value: String) = apply { externalUserId = value }
+        fun userHash(value: String) = apply { userHash = value }
         fun firstName(value: String) = apply { firstName = value }
         fun lastName(value: String) = apply { lastName = value }
         fun phone(value: String) = apply { phone = value }
@@ -89,6 +98,7 @@ class IdentifyParams private constructor(
         fun build(): IdentifyParams = IdentifyParams(
             distinctId = distinctId,
             externalUserId = externalUserId,
+            userHash = userHash,
             firstName = firstName,
             lastName = lastName,
             phone = phone,

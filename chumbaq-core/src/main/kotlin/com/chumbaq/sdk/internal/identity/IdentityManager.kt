@@ -96,12 +96,13 @@ internal class IdentityManager(
      * Links the current device fingerprint to an external user id.
      * Failures are logged but not thrown.
      */
-    suspend fun linkDevice(externalUserId: String) {
+    suspend fun linkDevice(externalUserId: String, userHash: String) {
         try {
             val body = JSONObject().apply {
                 put("projectId", projectId)
                 put("deviceFingerprint", fingerprintProvider.fingerprint)
                 put("externalUserId", externalUserId)
+                put("userHash", userHash)
                 put("platform", "android")
             }
             postAndDiscard("/api/identity/link-device", body.toString())
@@ -157,6 +158,7 @@ internal class IdentityManager(
         body.put("distinctId", fingerprintProvider.distinctId)
 
         params.externalUserId?.let { body.put("externalUserId", it) }
+        params.userHash?.let { body.put("userHash", it) }
         params.firstName?.let { body.put("firstName", it) }
         params.lastName?.let { body.put("lastName", it) }
         params.phone?.let { body.put("phone", it) }

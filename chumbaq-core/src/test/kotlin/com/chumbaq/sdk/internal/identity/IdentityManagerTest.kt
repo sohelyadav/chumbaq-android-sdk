@@ -95,6 +95,30 @@ class IdentityManagerTest {
         }
     }
 
+    // The server accepts an external user id only with the userHash the app's own server made.
+    @Test
+    fun `identify sends the userHash with the external id`() = runTest {
+        coEvery { requestExecutor.post(any(), any()) } returns buildResponse(
+            200,
+            JSONObject().apply {
+                put("id", "result-id"); put("projectId", projectId); put("deviceFingerprint", "fp-abc"); put("platform", "android")
+            },
+        )
+
+        manager.identify(IdentifyParams.Builder().externalUserId("user-42").userHash("ab12").build())
+
+        coVerify {
+            requestExecutor.post(
+                eq("/api/identity/identify"),
+                withArg { body ->
+                    val json = JSONObject(body)
+                    assertEquals("user-42", json.getString("externalUserId"))
+                    assertEquals("ab12", json.getString("userHash"))
+                },
+            )
+        }
+    }
+
     @Test
     fun `identify without auto device info does not include device fields`() = runTest {
         val managerNoAuto = IdentityManager(
@@ -210,7 +234,7 @@ class IdentityManagerTest {
     fun `linkDevice sends correct payload`() = runTest {
         coEvery { requestExecutor.post(any(), any()) } returns buildResponse(200, JSONObject())
 
-        manager.linkDevice("ext-user-1")
+        manager.linkDevice("ext-user-1", "hash-1")
 
         coVerify {
             requestExecutor.post(
@@ -220,6 +244,7 @@ class IdentityManagerTest {
                     assertEquals(projectId, json.getString("projectId"))
                     assertEquals("fp-abc", json.getString("deviceFingerprint"))
                     assertEquals("ext-user-1", json.getString("externalUserId"))
+                    assertEquals("hash-1", json.getString("userHash"))
                     assertEquals("android", json.getString("platform"))
                 },
             )
@@ -231,7 +256,7 @@ class IdentityManagerTest {
         coEvery { requestExecutor.post(any(), any()) } throws RuntimeException("server down")
 
         // Should not throw.
-        manager.linkDevice("ext-user-1")
+        manager.linkDevice("ext-user-1", "hash-1")
     }
 
     // ── Track Revenue ───────────────────────────────────────────────
