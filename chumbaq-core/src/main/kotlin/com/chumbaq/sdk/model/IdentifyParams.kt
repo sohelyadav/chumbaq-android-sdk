@@ -39,6 +39,7 @@ class IdentifyParams private constructor(
     val installCampaign: String?,
     val emailOptIn: Boolean?,
     val smsOptIn: Boolean?,
+    val whatsappOptIn: Boolean?,
     val pushOptIn: Boolean?,
     val gdprConsent: Boolean?,
     val doNotTrack: Boolean?,
@@ -66,6 +67,7 @@ class IdentifyParams private constructor(
         private var installCampaign: String? = null
         private var emailOptIn: Boolean? = null
         private var smsOptIn: Boolean? = null
+        private var whatsappOptIn: Boolean? = null
         private var pushOptIn: Boolean? = null
         private var gdprConsent: Boolean? = null
         private var doNotTrack: Boolean? = null
@@ -91,6 +93,7 @@ class IdentifyParams private constructor(
         fun installCampaign(value: String) = apply { installCampaign = value }
         fun emailOptIn(value: Boolean) = apply { emailOptIn = value }
         fun smsOptIn(value: Boolean) = apply { smsOptIn = value }
+        fun whatsappOptIn(value: Boolean) = apply { whatsappOptIn = value }
         fun pushOptIn(value: Boolean) = apply { pushOptIn = value }
         fun gdprConsent(value: Boolean) = apply { gdprConsent = value }
         fun doNotTrack(value: Boolean) = apply { doNotTrack = value }
@@ -117,6 +120,7 @@ class IdentifyParams private constructor(
             installCampaign = installCampaign,
             emailOptIn = emailOptIn,
             smsOptIn = smsOptIn,
+            whatsappOptIn = whatsappOptIn,
             pushOptIn = pushOptIn,
             gdprConsent = gdprConsent,
             doNotTrack = doNotTrack,

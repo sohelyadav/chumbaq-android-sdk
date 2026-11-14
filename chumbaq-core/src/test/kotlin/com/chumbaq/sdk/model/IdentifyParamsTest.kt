@@ -33,6 +33,7 @@ class IdentifyParamsTest {
             .installCampaign("launch_promo")
             .emailOptIn(true)
             .smsOptIn(false)
+            .whatsappOptIn(false)
             .pushOptIn(true)
             .gdprConsent(true)
             .doNotTrack(false)
@@ -58,6 +59,7 @@ class IdentifyParamsTest {
         assertEquals("launch_promo", params.installCampaign)
         assertTrue(params.emailOptIn!!)
         assertFalse(params.smsOptIn!!)
+        assertFalse(params.whatsappOptIn!!)
         assertTrue(params.pushOptIn!!)
         assertTrue(params.gdprConsent!!)
         assertFalse(params.doNotTrack!!)
@@ -87,6 +89,7 @@ class IdentifyParamsTest {
         assertNull(params.installCampaign)
         assertNull(params.emailOptIn)
         assertNull(params.smsOptIn)
+        assertNull(params.whatsappOptIn)
         assertNull(params.pushOptIn)
         assertNull(params.gdprConsent)
         assertNull(params.doNotTrack)
@@ -107,6 +110,7 @@ class IdentifyParamsTest {
         assertNull(params.traits)
         assertTrue(params.emailOptIn!!)
         assertNull(params.smsOptIn)
+        assertNull(params.whatsappOptIn)
     }
 
     @Test

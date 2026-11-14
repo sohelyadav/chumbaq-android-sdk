@@ -176,6 +176,7 @@ internal class IdentityManager(
         params.installCampaign?.let { body.put("installCampaign", it) }
         params.emailOptIn?.let { body.put("emailOptIn", it) }
         params.smsOptIn?.let { body.put("smsOptIn", it) }
+        params.whatsappOptIn?.let { body.put("whatsappOptIn", it) }
         params.pushOptIn?.let { body.put("pushOptIn", it) }
         params.gdprConsent?.let { body.put("gdprConsent", it) }
         params.doNotTrack?.let { body.put("doNotTrack", it) }

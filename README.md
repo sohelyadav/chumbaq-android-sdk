@@ -165,6 +165,7 @@ Chumbaq.identify(
         .pushOptIn(false)    // no push to this device
         .emailOptIn(true)
         .smsOptIn(false)
+        .whatsappOptIn(false)
         .doNotTrack(true)    // stop storing behavioural data from this device
         .build()
 )
