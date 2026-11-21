@@ -80,7 +80,32 @@ should do it there.
 
 ## Push notifications
 
-One call, and that is the whole integration:
+Push runs on Firebase Cloud Messaging, and the SDK does not set up Firebase
+for you. Without it the app gets no FCM token and logs no error, so do this
+first:
+
+1. Add your Android app (with its package name) to a Firebase project.
+2. Download its `google-services.json` into your `app/` module.
+3. Apply the Google services Gradle plugin. In the root `build.gradle.kts`:
+
+   ```kotlin
+   plugins {
+       id("com.google.gms.google-services") version "4.4.2" apply false
+   }
+   ```
+
+   And in `app/build.gradle.kts`:
+
+   ```kotlin
+   plugins {
+       id("com.google.gms.google-services")
+   }
+   ```
+
+FCM needs Google Play services on the device, so use an emulator image with
+Google Play.
+
+Then initialize the push module:
 
 ```kotlin
 ChumbaqPush.init(context)
