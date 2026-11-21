@@ -45,9 +45,9 @@ class PushTokenManagerTest {
     /** Short waits so the 404 retry tests do not sleep for real. */
     private val testRetryDelaysMs = listOf(10L, 20L, 40L)
 
-    /** The body the server sends when register runs before identify. */
+    /** The body the server (HttpExceptionFilter) sends when register runs before identify. */
     private val notFoundBody =
-        """{"statusCode":404,"message":"Device identity not found. Call identify() first.","error":"Not Found"}"""
+        """{"statusCode":404,"error":"Not Found","message":"Device identity not found. Call identify() first.","timestamp":"2026-11-21T19:00:00.000Z","path":"/api/push-tokens/register"}"""
 
     @Before
     fun setUp() {
