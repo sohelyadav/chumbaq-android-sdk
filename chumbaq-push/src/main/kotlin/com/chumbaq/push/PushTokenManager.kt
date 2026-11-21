@@ -47,6 +47,15 @@ internal class PushTokenManager(
     /** Latest successfully registered token per delivery channel. */
     private val registeredTokens = ConcurrentHashMap<PushProvider, String>()
 
+    /**
+     * Number of the most recent [registerToken] call per channel. A call
+     * that is no longer the most recent one stops retrying and does not
+     * write [registeredTokens], so an old token that was waiting on a 404
+     * cannot replace a newer token from a refresh.
+     */
+    private val latestRegisterCall = ConcurrentHashMap<PushProvider, Long>()
+    private val registerLock = Any()
+
     /** `true` while at least one channel is registered; reset by [unregisterAllTokens]. */
     val isRegistered: Boolean get() = registeredTokens.isNotEmpty()
 
@@ -99,7 +108,11 @@ internal class PushTokenManager(
      * [NOT_FOUND_RETRY_DELAYS_MS]) instead of failing straight away. Any
      * other non-2xx status fails at once.
      *
-     * @param token    the registration token or regId issued by [provider].
+     * If a newer call for the same [provider] starts while this one is
+     * retrying, this one returns without recording its token, so the newer
+     * token is the one kept (and later unregistered on logout).
+     *
+     * @param token   the registration token or regId issued by [provider].
      * @param provider the delivery channel the token belongs to.
      * @throws RuntimeException when the server returns a non-2xx status, or
      *                          still returns 404 after the last retry.
@@ -108,14 +121,28 @@ internal class PushTokenManager(
         token: String,
         provider: PushProvider = PushProvider.FCM,
     ): Unit = withContext(Dispatchers.IO) {
+        val call = synchronized(registerLock) {
+            (latestRegisterCall[provider] ?: 0L).plus(1).also { latestRegisterCall[provider] = it }
+        }
+        fun superseded() = latestRegisterCall[provider] != call
+
         var attempt = 0
         while (!sendRegister(token, provider, allowNotFound = attempt < notFoundRetryDelaysMs.size)) {
             val wait = notFoundRetryDelaysMs[attempt++]
             Log.d(TAG, "Push token register got 404, person not created yet; retrying in ${wait}ms")
             delay(wait)
+            if (superseded()) {
+                Log.d(TAG, "Push token register superseded by a newer one (${provider.value}), stopping")
+                return@withContext
+            }
         }
 
-        registeredTokens[provider] = token
+        // A newer register for the same channel may have finished while this
+        // one was retrying. Never let the older token overwrite it.
+        synchronized(registerLock) {
+            if (superseded()) return@withContext
+            registeredTokens[provider] = token
+        }
         Log.d(TAG, "Push token registered successfully (${provider.value})")
     }
 
