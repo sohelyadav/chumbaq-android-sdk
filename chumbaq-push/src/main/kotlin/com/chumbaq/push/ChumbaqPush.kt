@@ -52,8 +52,11 @@ object ChumbaqPush {
      * [com.chumbaq.sdk.ChumbaqConfigBridge].
      *
      * On success, the module immediately retrieves the current FCM
-     * token and registers it with the backend. If registration fails
-     * it is silently retried on the next token refresh.
+     * token and registers it with the backend. If that call lands before
+     * the anonymous identify from [Chumbaq.init] has created the person,
+     * the server answers 404 and the register call is retried with
+     * backoff. Any other failure is silently retried on the next token
+     * refresh.
      *
      * @param context any [Context]; the application context is retained.
      * @throws IllegalStateException if [Chumbaq.init] has not been called.
