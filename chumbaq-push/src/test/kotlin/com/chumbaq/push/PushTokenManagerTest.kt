@@ -38,6 +38,9 @@ class PushTokenManagerTest {
     private val testToken = "fcm_token_999"
     private val testMiRegId = "mi_regid_777"
 
+    /** Short waits so the 404 retry tests do not sleep for real. */
+    private val testRetryDelaysMs = listOf(10L, 20L, 40L)
+
     @Before
     fun setUp() {
         server = MockWebServer()
@@ -60,7 +63,7 @@ class PushTokenManagerTest {
         }
 
         val context = mockk<android.content.Context>(relaxed = true)
-        manager = PushTokenManager(context, httpClient, configSupplier)
+        manager = PushTokenManager(context, httpClient, configSupplier, testRetryDelaysMs)
     }
 
     @After
@@ -174,6 +177,66 @@ class PushTokenManagerTest {
         }
 
         assertFalse("isRegistered should be false after failure", manager.isRegistered)
+    }
+
+    // ── 404 retry (register lands before identify) ─────────────────
+
+    @Test
+    fun `registerToken retries a 404 until identify has created the person`() = runTest {
+        // Register reaches the server before the anonymous identify, so the
+        // person does not exist yet. Then identify lands and register works.
+        server.enqueue(MockResponse().setResponseCode(404).setBody("""{"error":"Person not found"}"""))
+        server.enqueue(MockResponse().setResponseCode(404).setBody("""{"error":"Person not found"}"""))
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+
+        manager.registerToken(testToken)
+
+        assertEquals(3, server.requestCount)
+        assertTrue("Should be registered once identify has landed", manager.isRegistered)
+        repeat(3) {
+            val request = server.takeRequest(2, TimeUnit.SECONDS)!!
+            assertEquals("/api/push-tokens/register", request.path)
+            assertEquals(testToken, JSONObject(request.body.readUtf8()).getString("token"))
+        }
+    }
+
+    @Test
+    fun `registerToken gives up after the last 404 retry`() = runTest {
+        repeat(testRetryDelaysMs.size + 1) {
+            server.enqueue(MockResponse().setResponseCode(404).setBody("""{"error":"Person not found"}"""))
+        }
+
+        try {
+            manager.registerToken(testToken)
+            throw AssertionError("Expected RuntimeException")
+        } catch (e: RuntimeException) {
+            assertTrue("Error should contain status code", e.message!!.contains("404"))
+        }
+
+        assertEquals(testRetryDelaysMs.size + 1, server.requestCount)
+        assertFalse("isRegistered should be false after giving up", manager.isRegistered)
+    }
+
+    @Test
+    fun `registerToken does not retry statuses other than 404`() = runTest {
+        server.enqueue(MockResponse().setResponseCode(400).setBody("""{"error":"Invalid token"}"""))
+        server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
+
+        try {
+            manager.registerToken(testToken)
+            throw AssertionError("Expected RuntimeException")
+        } catch (e: RuntimeException) {
+            assertTrue(e.message!!.contains("400"))
+        }
+
+        assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun `default 404 retry schedule is bounded`() {
+        val delays = PushTokenManager.NOT_FOUND_RETRY_DELAYS_MS
+        assertEquals(5, delays.size)
+        assertEquals(31_000L, delays.sum())
     }
 
     // ── unregisterAllTokens ─────────────────────────────────────────

@@ -6,6 +6,7 @@ import com.chumbaq.sdk.Chumbaq
 import com.chumbaq.sdk.ChumbaqConfigBridge
 import com.google.firebase.messaging.FirebaseMessaging
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.tasks.await
 import kotlinx.coroutines.withContext
 import okhttp3.HttpUrl.Companion.toHttpUrl
@@ -34,6 +35,11 @@ internal class PushTokenManager(
     private val httpClient: OkHttpClient = DEFAULT_CLIENT,
     /** Overridable config supplier for testing. */
     private val configSupplier: ConfigSupplier = DefaultConfigSupplier,
+    /**
+     * Waits between retries when register returns 404. Overridable so tests
+     * do not sleep for real.
+     */
+    private val notFoundRetryDelaysMs: List<Long> = NOT_FOUND_RETRY_DELAYS_MS,
 ) {
 
     private val TAG = "PushTokenManager"
@@ -87,14 +93,44 @@ internal class PushTokenManager(
      * Registering a channel leaves the other channels' tokens registered —
      * a device holding both an FCM token and a Mi Push regId keeps both.
      *
+     * A 404 means the server has no person for this device yet. That
+     * happens when this call lands before the anonymous identify sent by
+     * [Chumbaq.init], so a 404 is retried with backoff (see
+     * [NOT_FOUND_RETRY_DELAYS_MS]) instead of failing straight away. Any
+     * other non-2xx status fails at once.
+     *
      * @param token    the registration token or regId issued by [provider].
      * @param provider the delivery channel the token belongs to.
-     * @throws RuntimeException when the server returns a non-2xx status.
+     * @throws RuntimeException when the server returns a non-2xx status, or
+     *                          still returns 404 after the last retry.
      */
     suspend fun registerToken(
         token: String,
         provider: PushProvider = PushProvider.FCM,
     ): Unit = withContext(Dispatchers.IO) {
+        var attempt = 0
+        while (!sendRegister(token, provider, allowNotFound = attempt < notFoundRetryDelaysMs.size)) {
+            val wait = notFoundRetryDelaysMs[attempt++]
+            Log.d(TAG, "Push token register got 404, person not created yet; retrying in ${wait}ms")
+            delay(wait)
+        }
+
+        registeredTokens[provider] = token
+        Log.d(TAG, "Push token registered successfully (${provider.value})")
+    }
+
+    /**
+     * Sends one register request.
+     *
+     * @return `true` on success, `false` on a 404 when [allowNotFound] is set.
+     * @throws RuntimeException on any other non-2xx status, or on a 404 when
+     *                          [allowNotFound] is not set.
+     */
+    private fun sendRegister(
+        token: String,
+        provider: PushProvider,
+        allowNotFound: Boolean,
+    ): Boolean {
         val cfg = configSupplier.get()
 
         val body = JSONObject().apply {
@@ -114,16 +150,13 @@ internal class PushTokenManager(
 
         val response = httpClient.newCall(request).execute()
         response.use { resp ->
-            if (!resp.isSuccessful) {
-                val errorBody = resp.body?.string() ?: "Unknown error"
-                throw RuntimeException(
-                    "Push token registration failed (${resp.code}): $errorBody"
-                )
-            }
+            if (resp.isSuccessful) return true
+            if (resp.code == HTTP_NOT_FOUND && allowNotFound) return false
+            val errorBody = resp.body?.string() ?: "Unknown error"
+            throw RuntimeException(
+                "Push token registration failed (${resp.code}): $errorBody"
+            )
         }
-
-        registeredTokens[provider] = token
-        Log.d(TAG, "Push token registered successfully (${provider.value})")
     }
 
     // ── Unregistration ──────────────────────────────────────────────
@@ -182,6 +215,15 @@ internal class PushTokenManager(
     // ── Companion ───────────────────────────────────────────────────
 
     internal companion object {
+        private const val HTTP_NOT_FOUND = 404
+
+        /**
+         * Waits before each retry of a register call that got 404. Five
+         * retries, about 31 seconds in total, which is well past the time
+         * the anonymous identify from [Chumbaq.init] takes to land.
+         */
+        internal val NOT_FOUND_RETRY_DELAYS_MS = listOf(1_000L, 2_000L, 4_000L, 8_000L, 16_000L)
+
         private val JSON_MEDIA_TYPE = "application/json".toMediaType()
 
         private val DEFAULT_CLIENT: OkHttpClient = OkHttpClient.Builder()
