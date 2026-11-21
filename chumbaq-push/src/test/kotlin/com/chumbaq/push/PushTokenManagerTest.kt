@@ -3,7 +3,11 @@ package com.chumbaq.push
 import io.mockk.every
 import io.mockk.mockk
 import io.mockk.unmockkAll
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.async
 import kotlinx.coroutines.test.runTest
+import okhttp3.mockwebserver.Dispatcher
+import okhttp3.mockwebserver.RecordedRequest
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.OkHttpClient
@@ -41,6 +45,10 @@ class PushTokenManagerTest {
     /** Short waits so the 404 retry tests do not sleep for real. */
     private val testRetryDelaysMs = listOf(10L, 20L, 40L)
 
+    /** The body the server sends when register runs before identify. */
+    private val notFoundBody =
+        """{"statusCode":404,"message":"Device identity not found. Call identify() first.","error":"Not Found"}"""
+
     @Before
     fun setUp() {
         server = MockWebServer()
@@ -51,9 +59,15 @@ class PushTokenManagerTest {
             .readTimeout(5, TimeUnit.SECONDS)
             .build()
 
-        val baseUrl = server.url("").toString().trimEnd('/')
+        val configSupplier = configSupplierFor(server)
 
-        val configSupplier = PushTokenManager.ConfigSupplier {
+        val context = mockk<android.content.Context>(relaxed = true)
+        manager = PushTokenManager(context, httpClient, configSupplier, testRetryDelaysMs)
+    }
+
+    private fun configSupplierFor(server: MockWebServer): PushTokenManager.ConfigSupplier {
+        val baseUrl = server.url("").toString().trimEnd('/')
+        return PushTokenManager.ConfigSupplier {
             PushTokenManager.Config(
                 baseUrl = baseUrl,
                 apiKey = testApiKey,
@@ -61,9 +75,6 @@ class PushTokenManagerTest {
                 deviceFingerprint = testFingerprint,
             )
         }
-
-        val context = mockk<android.content.Context>(relaxed = true)
-        manager = PushTokenManager(context, httpClient, configSupplier, testRetryDelaysMs)
     }
 
     @After
@@ -185,8 +196,8 @@ class PushTokenManagerTest {
     fun `registerToken retries a 404 until identify has created the person`() = runTest {
         // Register reaches the server before the anonymous identify, so the
         // person does not exist yet. Then identify lands and register works.
-        server.enqueue(MockResponse().setResponseCode(404).setBody("""{"error":"Person not found"}"""))
-        server.enqueue(MockResponse().setResponseCode(404).setBody("""{"error":"Person not found"}"""))
+        server.enqueue(MockResponse().setResponseCode(404).setBody(notFoundBody))
+        server.enqueue(MockResponse().setResponseCode(404).setBody(notFoundBody))
         server.enqueue(MockResponse().setResponseCode(200).setBody("{}"))
 
         manager.registerToken(testToken)
@@ -203,7 +214,7 @@ class PushTokenManagerTest {
     @Test
     fun `registerToken gives up after the last 404 retry`() = runTest {
         repeat(testRetryDelaysMs.size + 1) {
-            server.enqueue(MockResponse().setResponseCode(404).setBody("""{"error":"Person not found"}"""))
+            server.enqueue(MockResponse().setResponseCode(404).setBody(notFoundBody))
         }
 
         try {
@@ -230,6 +241,44 @@ class PushTokenManagerTest {
         }
 
         assertEquals(1, server.requestCount)
+    }
+
+    @Test
+    fun `an older register that was waiting on 404 does not replace a newer token`() = runTest {
+        val oldToken = "fcm_token_old"
+        val newToken = "fcm_token_new"
+        var oldAttempts = 0
+        server.dispatcher = object : Dispatcher() {
+            override fun dispatch(request: RecordedRequest): MockResponse {
+                if (request.method == "DELETE") return MockResponse().setResponseCode(200)
+                val token = JSONObject(request.body.readUtf8()).getString("token")
+                // The old token's first call lands before identify.
+                if (token == oldToken && oldAttempts++ == 0) {
+                    return MockResponse().setResponseCode(404).setBody(notFoundBody)
+                }
+                return MockResponse().setResponseCode(200).setBody("{}")
+            }
+        }
+        val slowRetry = PushTokenManager(
+            mockk(relaxed = true),
+            httpClient,
+            configSupplierFor(server),
+            notFoundRetryDelaysMs = listOf(300L),
+        )
+
+        // Call A (old token) gets 404 and starts waiting to retry.
+        val callA = async(Dispatchers.IO) { slowRetry.registerToken(oldToken) }
+        server.takeRequest(2, TimeUnit.SECONDS)!!
+        // Call B (new token from a refresh) succeeds while A waits.
+        slowRetry.registerToken(newToken)
+        server.takeRequest(2, TimeUnit.SECONDS)!!
+        callA.await()
+
+        // Logout must remove the new token, not the old one.
+        slowRetry.unregisterAllTokens()
+        var delete = server.takeRequest(2, TimeUnit.SECONDS)!!
+        while (delete.method != "DELETE") delete = server.takeRequest(2, TimeUnit.SECONDS)!!
+        assertEquals(newToken, delete.requestUrl!!.queryParameter("token"))
     }
 
     @Test
