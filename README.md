@@ -12,7 +12,7 @@ others depends on it. The BOM keeps their versions aligned:
 
 ```kotlin
 dependencies {
-    implementation(platform("com.chumbaq:chumbaq-bom:0.2.1"))
+    implementation(platform("com.chumbaq:chumbaq-bom:0.2.2"))
 
     implementation("com.chumbaq:chumbaq-core")
     implementation("com.chumbaq:chumbaq-push")       // optional
