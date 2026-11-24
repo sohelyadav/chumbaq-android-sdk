@@ -5,6 +5,54 @@ banners, and push notifications for Chumbaq.
 
 `minSdk` 21, `compileSdk` 34.
 
+## First push in 10 minutes
+
+For an Android app that has never used Chumbaq.
+
+**1. Create a project.** In the Chumbaq dashboard, create a project and copy
+its project ID and its SDK (project API) key.
+
+**2. Add the SDK.**
+
+```kotlin
+dependencies {
+    implementation(platform("com.chumbaq:chumbaq-bom:0.2.1"))
+    implementation("com.chumbaq:chumbaq-core")
+    implementation("com.chumbaq:chumbaq-push")
+}
+```
+
+**3. Set up Firebase.** Follow the three steps in
+[Push notifications](#push-notifications), then upload that Firebase
+project's service account key in the Chumbaq dashboard under Push
+Notifications → Settings.
+
+**4. Initialize the SDK and push.** In `Application.onCreate`:
+
+```kotlin
+Chumbaq.init(this, ChumbaqConfig.Builder(
+    baseUrl = "https://your-chumbaq-host",
+    apiKey = "<SDK key>",
+    projectId = "<project id>",
+).build())
+ChumbaqPush.init(this)   // fetches and registers the FCM token
+```
+
+The SDK does not ask for notification permission; your app does. On Android
+13+ declare `android.permission.POST_NOTIFICATIONS` in the manifest and
+request it at runtime, as `sample/src/main/kotlin/com/chumbaq/sample/MainActivity.kt`
+does. `ChumbaqPush.isRegistered` turns `true` once the token has reached
+Chumbaq.
+
+**5. Identify the user.** Call `Chumbaq.identify` with `externalUserId` and a
+`userHash` made on your server. See [Getting started](#getting-started) for
+the call and how to make the hash.
+
+**6. Send a test push.** In the dashboard, open Push Notifications → Settings
+tab → Test send and send to the device. If nothing arrives, check that
+`ChumbaqPush.isRegistered` is `true`, and look in Logcat for the
+`ChumbaqPush` and `PushTokenManager` tags.
+
 ## Installation
 
 Four modules. `chumbaq-core` is the only mandatory one, and each of the
